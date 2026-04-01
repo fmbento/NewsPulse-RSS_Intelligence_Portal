@@ -167,13 +167,13 @@ app.get("/api/health", async (req, res) => {
         status: i.status
       })),
       globalLatest: {
-        timestamp: latestDoc.hits.hits[0]?._source?.["@timestamp"],
+        timestamp: (latestDoc.hits.hits[0]?._source as any)?.["@timestamp"],
         index: latestDoc.hits.hits[0]?._index,
-        title: latestDoc.hits.hits[0]?._source?.title
+        title: (latestDoc.hits.hits[0]?._source as any)?.title
       },
       rssFeedsLatest: {
-        timestamp: latestRssFeedsDoc.hits.hits[0]?._source?.["@timestamp"],
-        title: latestRssFeedsDoc.hits.hits[0]?._source?.title
+        timestamp: (latestRssFeedsDoc.hits.hits[0]?._source as any)?.["@timestamp"],
+        title: (latestRssFeedsDoc.hits.hits[0]?._source as any)?.title
       }
     });
   } catch (error: any) {
@@ -228,16 +228,10 @@ const fetchLatestFromES = async () => {
     } as any);
 
     const seenTitles = new Set();
-    let debugCount = 0;
     const uniqueHits = result.hits.hits
       .map((hit: any) => {
         const source = hit._source;
         
-        if (debugCount < 5) {
-          fs.appendFileSync('any_doc_debug.txt', `[DEBUG] Doc ${debugCount}: ${source.title}\nKeys: ${Object.keys(source).join(", ")}\nSource: ${JSON.stringify(source, null, 2)}\n\n`);
-          debugCount++;
-        }
-
         return {
           ...source,
           type: "news",
