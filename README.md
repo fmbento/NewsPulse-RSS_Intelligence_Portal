@@ -115,5 +115,5 @@ Distributed under the MIT License. See `LICENSE` for more information.
 ## ✍️ Author
 
 **Filipe MS Bento**
-- [GitHub](https://github.com/filben)
-- [LinkedIn](https://www.linkedin.com/in/filipe-bento-4a1b1b1b)
+- [GitHub](https://github.com/fmbento)
+- [LinkedIn](https://www.linkedin.com/in/filipebento/)
