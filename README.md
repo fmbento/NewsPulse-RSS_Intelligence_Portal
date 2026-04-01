@@ -109,3 +109,11 @@ Please ensure your code adheres to the project's TypeScript and linting standard
 ## 📄 License
 
 Distributed under the MIT License. See `LICENSE` for more information.
+
+---
+
+## ✍️ Author
+
+**Filipe MS Bento**
+- [GitHub](https://github.com/filben)
+- [LinkedIn](https://www.linkedin.com/in/filipe-bento-4a1b1b1b)
