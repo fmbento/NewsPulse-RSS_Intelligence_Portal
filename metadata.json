@@ -1,0 +1,5 @@
+{
+  "name": "NewsPulse: RSS Intelligence Dashboard",
+  "description": "A high-performance news monitoring interface powered by Elasticsearch, featuring real-time trending topics, a live news river, and deep historical search.",
+  "requestFramePermissions": []
+}

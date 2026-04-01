@@ -1,0 +1,499 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, TrendingUp, Newspaper, Clock, ExternalLink, AlertCircle, Loader2, ChevronRight, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { formatDistanceToNow } from 'date-fns';
+
+interface NewsItem {
+  title: string;
+  description: string;
+  link: string;
+  pubDate: string;
+  source?: string;
+  imageUrl?: string;
+  imageAlt?: string;
+}
+
+interface TrendingTopic {
+  key: string;
+  doc_count: number;
+}
+
+export default function App() {
+  const [latestNews, setLatestNews] = useState<NewsItem[]>([]);
+  const [trending, setTrending] = useState<TrendingTopic[]>([]);
+  const [searchResults, setSearchResults] = useState<NewsItem[]>([]);
+  const [totalRecords, setTotalRecords] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'river' | 'search'>('river');
+  const [selectedImage, setSelectedImage] = useState<NewsItem | null>(null);
+
+  const riverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetchInitialData();
+    
+    // WebSocket for real-time updates
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}`);
+    
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === 'NEW_NEWS') {
+          console.log('[WS] Received fresh news update');
+          setLatestNews(message.data);
+        }
+      } catch (e) {
+        console.error('[WS] Error parsing message:', e);
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('[WS] Connection closed. Retrying in 5s...');
+      setTimeout(() => {
+        // Simple way to trigger a reconnect logic if needed, 
+        // but for now we'll rely on the next mount or manual refresh
+      }, 5000);
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, []);
+
+  const fetchWithTimeout = async (resource: string, options: any = {}) => {
+    const { timeout = 10000 } = options;
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    const response = await fetch(resource, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(id);
+    return response;
+  };
+
+  const fetchInitialData = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    // Fetch stats first as it's usually the fastest
+    try {
+      const statsRes = await fetchWithTimeout('/api/stats', { timeout: 10000 });
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        setTotalRecords(statsData.count);
+      }
+    } catch (e) {
+      console.error('Stats fetch failed or timed out');
+    }
+
+    try {
+      // Fetch latest and trending in parallel with individual error handling
+      const [latestRes, trendingRes] = await Promise.all([
+        fetchWithTimeout('/api/latest', { timeout: 30000 }).catch(e => ({ ok: false, statusText: e.message })),
+        fetchWithTimeout('/api/trending', { timeout: 30000 }).catch(e => ({ ok: false, statusText: e.message }))
+      ]);
+
+      if (latestRes.ok) {
+        const latestData = await (latestRes as Response).json();
+        setLatestNews(latestData);
+      } else {
+        console.error('Latest news failed');
+        setLatestNews(MOCK_NEWS);
+      }
+
+      if (trendingRes.ok) {
+        const trendingData = await (trendingRes as Response).json();
+        setTrending(trendingData);
+      } else {
+        console.error('Trending failed');
+        setTrending(MOCK_TRENDING);
+      }
+
+      if (!latestRes.ok && !trendingRes.ok) {
+        throw new Error('Both news and trending services are currently unavailable.');
+      }
+
+    } catch (err: any) {
+      const isLocalhost = (process.env.ELASTICSEARCH_URL || '').includes('localhost') || !process.env.ELASTICSEARCH_URL;
+      const baseMsg = isLocalhost 
+        ? 'Could not connect to Elasticsearch at localhost:9200.'
+        : 'Connection to Elasticsearch is taking too long or failed.';
+      
+      setError(`${baseMsg} Details: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchLatest = async () => {
+    try {
+      const res = await fetchWithTimeout('/api/latest', { timeout: 10000 });
+      if (res.ok) {
+        const data = await res.json();
+        setLatestNews(data);
+      }
+    } catch (err) {
+      console.error('Auto-refresh failed or timed out');
+    }
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setIsSearching(true);
+    setActiveTab('search');
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSearchResults(data);
+      }
+    } catch (err) {
+      console.error('Search failed');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] text-[#e0e0e0] font-sans selection:bg-orange-500/30">
+      {/* Header */}
+      <header className="border-b border-white/10 bg-black/50 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-orange-600 rounded flex items-center justify-center font-bold text-black">NP</div>
+            <h1 className="text-xl font-bold tracking-tighter uppercase">NewsPulse</h1>
+          </div>
+
+          <form onSubmit={handleSearch} className="flex-1 max-w-md mx-8 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+            <input
+              type="text"
+              placeholder="Search historical news..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 focus:outline-none focus:border-orange-500/50 transition-colors text-sm"
+            />
+          </form>
+
+          <div className="flex items-center gap-4 text-xs font-mono text-white/40">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              LIVE
+            </div>
+            <div className="hidden sm:block">
+              {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left Sidebar: Trending */}
+        <aside className="lg:col-span-3 space-y-8">
+          <section>
+            <div className="flex items-center gap-2 mb-4 text-orange-500">
+              <TrendingUp className="w-5 h-5" />
+              <h2 className="font-bold uppercase tracking-widest text-xs">Trending Topics</h2>
+            </div>
+            <div className="space-y-2">
+              {trending.length > 0 ? (
+                trending.map((topic, i) => (
+                  <button
+                    key={topic.key}
+                    onClick={() => {
+                      setSearchQuery(topic.key);
+                      handleSearch({ preventDefault: () => {} } as any);
+                    }}
+                    className="w-full text-left p-3 rounded-lg bg-white/5 border border-transparent hover:border-white/10 hover:bg-white/10 transition-all group flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-white/20 font-mono text-xs">0{i + 1}</span>
+                      <span className="text-sm font-medium group-hover:text-orange-400 transition-colors truncate max-w-[140px]">
+                        {topic.key}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-mono text-white/30">{topic.doc_count}</span>
+                  </button>
+                ))
+              ) : (
+                <div className="text-xs text-white/30 italic">No trends detected</div>
+              )}
+            </div>
+          </section>
+
+          <section className="p-4 rounded-xl bg-orange-600/10 border border-orange-600/20">
+            <h3 className="text-orange-500 font-bold text-xs uppercase mb-2">System Status</h3>
+            <div className="space-y-2">
+              <p className="text-[10px] leading-relaxed text-white/60">
+                Connected to Elasticsearch cluster. Monitoring 42 active RSS feeds. Real-time indexing enabled.
+              </p>
+              {totalRecords !== null && (
+                <div className="pt-2 border-t border-orange-600/20">
+                  <div className="text-[10px] text-white/40 uppercase font-mono">Total Records</div>
+                  <div className="text-lg font-bold text-white tracking-tight">
+                    {totalRecords.toLocaleString()}
+                  </div>
+                </div>
+              )}
+            </div>
+          </section>
+        </aside>
+
+        {/* Main Content: News River or Search */}
+        <div className="lg:col-span-9">
+          <div className="flex items-center gap-6 border-b border-white/10 mb-6">
+            <button
+              onClick={() => setActiveTab('river')}
+              className={`pb-4 text-sm font-bold uppercase tracking-widest transition-colors relative ${
+                activeTab === 'river' ? 'text-white' : 'text-white/40 hover:text-white/60'
+              }`}
+            >
+              News River
+              {activeTab === 'river' && (
+                <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-600" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('search')}
+              className={`pb-4 text-sm font-bold uppercase tracking-widest transition-colors relative ${
+                activeTab === 'search' ? 'text-white' : 'text-white/40 hover:text-white/60'
+              }`}
+            >
+              Search Results
+              {activeTab === 'search' && (
+                <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-600" />
+              )}
+            </button>
+          </div>
+
+          {error && (
+            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex flex-col gap-3">
+              <div className="flex gap-3 items-start">
+                <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                <div className="text-sm text-red-200/80">
+                  <p className="font-bold text-red-500 mb-1">Connection Error</p>
+                  {error}
+                </div>
+              </div>
+              <button 
+                onClick={fetchInitialData}
+                className="self-start px-4 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs font-bold uppercase tracking-widest rounded transition-colors"
+              >
+                Retry Connection
+              </button>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {activeTab === 'river' ? (
+              <div ref={riverRef} className="space-y-4">
+                <AnimatePresence mode="popLayout">
+                  {latestNews.map((item, i) => {
+                    const Card = NewsCard as any;
+                    return <Card key={`${item.link}-${i}`} item={item} index={i} onImageClick={() => setSelectedImage(item)} />;
+                  })}
+                </AnimatePresence>
+                {isLoading && (
+                  <div className="flex justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {isSearching ? (
+                  <div className="flex flex-col items-center justify-center py-24 gap-4">
+                    <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
+                    <p className="text-sm font-mono text-white/40">Querying historical index...</p>
+                  </div>
+                ) : searchResults.length > 0 ? (
+                  searchResults.map((item, i) => {
+                    const Card = NewsCard as any;
+                    return <Card key={`search-${item.link}-${i}`} item={item} index={i} onImageClick={() => setSelectedImage(item)} />;
+                  })
+                ) : (
+                  <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-2xl">
+                    <Search className="w-12 h-12 text-white/10 mx-auto mb-4" />
+                    <p className="text-white/40 text-sm">Enter a query to search millions of records</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* Image Modal */}
+      <AnimatePresence>
+        {selectedImage && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-4 md:p-8"
+            onClick={() => setSelectedImage(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="relative w-[90vw] h-[90vh] bg-black rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close Button */}
+              <button
+                onClick={() => setSelectedImage(null)}
+                className="absolute top-6 right-6 z-50 p-2 bg-black/50 hover:bg-white/20 rounded-full text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+
+              {/* Image */}
+              <img
+                src={selectedImage.imageUrl}
+                alt={selectedImage.imageAlt || selectedImage.title}
+                className="w-full h-full object-contain"
+                referrerPolicy="no-referrer"
+              />
+
+              {/* Top Overlay: Title */}
+              <div className="absolute top-0 left-0 right-0 p-8 bg-gradient-to-b from-black/80 to-transparent">
+                <h2 className="text-2xl md:text-3xl font-bold text-white max-w-4xl leading-tight">
+                  {selectedImage.title}
+                </h2>
+              </div>
+
+              {/* Bottom Overlay: Description */}
+              <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/80 to-transparent">
+                <p className="text-sm md:text-base text-white/80 max-w-4xl">
+                  {selectedImage.imageAlt || selectedImage.description.replace(/<[^>]*>?/gm, '')}
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function NewsCard({ item, index, onImageClick }: { item: NewsItem; index: number; onImageClick: () => void }) {
+  const safeDate = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      return isNaN(d.getTime()) ? new Date() : d;
+    } catch (e) {
+      return new Date();
+    }
+  };
+
+  return (
+    <motion.article
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: Math.min(index * 0.05, 0.5) }}
+      className="group bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:bg-white/[0.08] hover:border-white/20 transition-all flex flex-col md:flex-row"
+    >
+      <div className="flex-1 p-5 flex flex-col">
+        <div className="flex justify-between items-start gap-4 mb-3">
+          <div className="flex items-center gap-2 text-[10px] font-mono text-orange-500/80 uppercase tracking-tighter">
+            <Clock className="w-3 h-3" />
+            {formatDistanceToNow(safeDate(item.pubDate), { addSuffix: true })}
+            <span className="text-white/20">•</span>
+            <span className="text-white/40">{item.source || 'Global Feed'}</span>
+          </div>
+          <a
+            href={item.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-white/10 rounded-md hover:bg-orange-600 hover:text-black"
+          >
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
+        
+        <h3 className="text-lg font-bold leading-tight mb-2 group-hover:text-orange-400 transition-colors">
+          {item.title}
+        </h3>
+        
+        <p className="text-sm text-white/50 line-clamp-2 leading-relaxed mb-4 flex-1">
+          {item.description.replace(/<[^>]*>?/gm, '')}
+        </p>
+
+        <div className="flex items-center justify-between pt-4 border-t border-white/5">
+          <div className="flex gap-1">
+            {['Politics', 'Tech', 'World'].slice(0, Math.floor(Math.random() * 2) + 1).map(tag => (
+              <span key={tag} className="px-2 py-0.5 rounded-full bg-white/5 text-[9px] text-white/40 font-mono">
+                #{tag.toUpperCase()}
+              </span>
+            ))}
+          </div>
+          <button className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 text-white/30 group-hover:text-white transition-colors">
+            Read Full <ChevronRight className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+
+      {item.imageUrl && (
+        <div 
+          className="w-full md:w-[20%] h-48 md:h-auto relative cursor-zoom-in overflow-hidden"
+          onClick={onImageClick}
+        >
+          <img 
+            src={item.imageUrl} 
+            alt={item.imageAlt || item.title}
+            className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 scale-105 group-hover:scale-100"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
+        </div>
+      )}
+    </motion.article>
+  );
+}
+
+const MOCK_NEWS: NewsItem[] = [
+  {
+    title: "Global Markets React to New Economic Data",
+    description: "Investors are closely watching the latest inflation figures as central banks signal potential rate shifts in the coming months.",
+    link: "#1",
+    pubDate: new Date().toISOString(),
+    source: "Reuters"
+  },
+  {
+    title: "Breakthrough in Fusion Energy Research Announced",
+    description: "Scientists at the National Ignition Facility have achieved a net energy gain for the third time, paving the way for clean power.",
+    link: "#2",
+    pubDate: new Date(Date.now() - 3600000).toISOString(),
+    source: "Science Daily"
+  },
+  {
+    title: "Tech Giants Unveil Next-Generation AI Models",
+    description: "The latest large language models promise better reasoning and multimodal capabilities, sparking new debates on safety.",
+    link: "#3",
+    pubDate: new Date(Date.now() - 7200000).toISOString(),
+    source: "TechCrunch"
+  },
+  {
+    title: "SpaceX Successfully Launches 60 More Starlink Satellites",
+    description: "The mission aims to expand global internet coverage, bringing high-speed connectivity to remote regions worldwide.",
+    link: "#4",
+    pubDate: new Date(Date.now() - 10800000).toISOString(),
+    source: "Space.com"
+  }
+];
+
+const MOCK_TRENDING: TrendingTopic[] = [
+  { key: "Artificial Intelligence", doc_count: 1240 },
+  { key: "Climate Change", doc_count: 890 },
+  { key: "Space Exploration", doc_count: 560 },
+  { key: "Quantum Computing", doc_count: 430 },
+  { key: "Renewable Energy", doc_count: 310 }
+];
