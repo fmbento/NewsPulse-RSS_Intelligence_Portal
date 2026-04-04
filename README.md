@@ -95,6 +95,26 @@ The application requires connection to an Elasticsearch instance. Define the fol
 
 ---
 
+## 📜 Changelog
+
+### [0.3.1] - 2026-04-04
+- **Seamless Navigation**: Added external link button in detail popup with auto-close behavior.
+- **UI Polish**: Added newspaper icon fallback for articles without images in the detail view.
+
+### [0.3.0] - 2026-04-04
+- **Interactive News Cards**: Updated titles to open the detail popup for a richer reading experience.
+- **Enhanced Detail Popup**: Added source name and full publication date above the title in the modal.
+- **Overflow Fixes**: Implemented `min-w-0` and `line-clamp` to ensure robust layouts on all devices.
+
+### [0.2.0] - 2026-04-02
+- **Search Relevance**: Implemented `match_phrase` boosting (5.0x) for titles to prioritize exact matches.
+- **Index Optimization**: Expanded search pattern to `*` for more comprehensive results.
+
+### [0.1.0] - 2026-03-30
+- **Initial Release**: High-performance news aggregation with Elasticsearch integration and real-time updates.
+
+---
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please follow these steps:
