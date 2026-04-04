@@ -339,26 +339,71 @@ app.get("/api/trending", async (req, res) => {
   }
 });
 
-app.get("/api/search", async (req, res) => {
-  const { q } = req.query;
+app.get("/api/debug/artemis", async (req, res) => {
   try {
     const result = await esClient.search({
       index: "rss*",
       query: {
+        match: {
+          title: "Artemis II Completes First Day of Its NASA Lunar Mission"
+        }
+      }
+    } as any);
+    res.json(result.hits.hits);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/debug/mapping", async (req, res) => {
+  try {
+    const mapping = await esClient.indices.getMapping({ index: "rss_feeds" });
+    res.json(mapping);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/api/search", async (req, res) => {
+  const { q } = req.query;
+  try {
+    const result = await esClient.search({
+      index: "*",
+      query: {
         bool: {
           must: [
             {
-              multi_match: {
-                query: q as string,
-                fields: ["title", "description", "content"],
+              bool: {
+                should: [
+                  {
+                    multi_match: {
+                      query: q as string,
+                      fields: ["title", "description", "content"],
+                      type: "best_fields",
+                      operator: "or",
+                      boost: 1.0
+                    }
+                  },
+                  {
+                    match_phrase: {
+                      title: {
+                        query: q as string,
+                        boost: 5.0
+                      }
+                    }
+                  }
+                ]
               }
             }
           ],
           filter: [{ range: { "@timestamp": { lte: "now" } } }]
         }
       },
-      sort: [{ "@timestamp": { order: "desc" } }],
-      size: 200, // Fetch more to allow for de-duplication
+      sort: [
+        { _score: { order: "desc" } },
+        { "@timestamp": { order: "desc" } }
+      ],
+      size: 200,
     } as any);
     
     const seenTitles = new Set();

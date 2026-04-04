@@ -297,7 +297,7 @@ export default function App() {
                 <AnimatePresence mode="popLayout">
                   {latestNews.map((item, i) => {
                     const Card = NewsCard as any;
-                    return <Card key={`${item.link}-${i}`} item={item} index={i} onImageClick={() => setSelectedImage(item)} />;
+                    return <Card key={`${item.link}-${i}`} item={item} index={i} onOpenDetail={() => setSelectedImage(item)} />;
                   })}
                 </AnimatePresence>
                 {isLoading && (
@@ -316,7 +316,7 @@ export default function App() {
                 ) : searchResults.length > 0 ? (
                   searchResults.map((item, i) => {
                     const Card = NewsCard as any;
-                    return <Card key={`search-${item.link}-${i}`} item={item} index={i} onImageClick={() => setSelectedImage(item)} />;
+                    return <Card key={`search-${item.link}-${i}`} item={item} index={i} onOpenDetail={() => setSelectedImage(item)} />;
                   })
                 ) : (
                   <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-2xl">
@@ -355,17 +355,51 @@ export default function App() {
                 <X className="w-6 h-6" />
               </button>
 
-              {/* Image */}
-              <img
-                src={selectedImage.imageUrl}
-                alt={selectedImage.imageAlt || selectedImage.title}
-                className="w-full h-full object-contain"
-                referrerPolicy="no-referrer"
-              />
+              {/* External Link Button */}
+              <a
+                href={selectedImage.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setSelectedImage(null)}
+                className="absolute top-20 right-6 z-50 p-2 bg-black/50 hover:bg-orange-600 rounded-full text-white transition-colors group/link"
+                title="Open original article"
+              >
+                <ExternalLink className="w-6 h-6 group-hover/link:text-black" />
+              </a>
 
-              {/* Top Overlay: Title */}
-              <div className="absolute top-0 left-0 right-0 p-8 bg-gradient-to-b from-black/80 to-transparent">
-                <h2 className="text-2xl md:text-3xl font-bold text-white max-w-4xl leading-tight">
+              {/* Image */}
+              {selectedImage.imageUrl ? (
+                <img
+                  src={selectedImage.imageUrl}
+                  alt={selectedImage.imageAlt || selectedImage.title}
+                  className="w-full h-full object-contain"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-white/5">
+                  <Newspaper className="w-24 h-24 text-white/10" />
+                </div>
+              )}
+
+              {/* Top Overlay: Title and Metadata */}
+              <div className="absolute top-0 left-0 right-0 p-8 bg-gradient-to-b from-black/90 via-black/60 to-transparent">
+                <div className="flex items-center gap-3 text-xs md:text-sm font-mono text-orange-500 mb-3 uppercase tracking-wider">
+                  <span className="bg-orange-600/20 px-2 py-0.5 rounded border border-orange-600/30">
+                    {selectedImage.source || 'Global Feed'}
+                  </span>
+                  <span className="text-white/40">•</span>
+                  <span className="flex items-center gap-1.5 text-white/60">
+                    <Clock className="w-3.5 h-3.5" />
+                    {new Date(selectedImage.pubDate).toLocaleDateString('en-US', { 
+                      month: 'long', 
+                      day: 'numeric', 
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </span>
+                </div>
+                <h2 className="text-2xl md:text-4xl font-bold text-white max-w-4xl leading-tight tracking-tight">
                   {selectedImage.title}
                 </h2>
               </div>
@@ -384,7 +418,7 @@ export default function App() {
   );
 }
 
-function NewsCard({ item, index, onImageClick }: { item: NewsItem; index: number; onImageClick: () => void }) {
+function NewsCard({ item, index, onOpenDetail }: { item: NewsItem; index: number; onOpenDetail: () => void }) {
   const safeDate = (dateStr: string) => {
     try {
       const d = new Date(dateStr);
@@ -401,7 +435,7 @@ function NewsCard({ item, index, onImageClick }: { item: NewsItem; index: number
       transition={{ delay: Math.min(index * 0.05, 0.5) }}
       className="group bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:bg-white/[0.08] hover:border-white/20 transition-all flex flex-col md:flex-row"
     >
-      <div className="flex-1 p-5 flex flex-col">
+      <div className="flex-1 p-5 flex flex-col min-w-0">
         <div className="flex justify-between items-start gap-4 mb-3">
           <div className="flex items-center gap-2 text-[10px] font-mono text-orange-500/80 uppercase tracking-tighter">
             <Clock className="w-3 h-3" />
@@ -419,15 +453,20 @@ function NewsCard({ item, index, onImageClick }: { item: NewsItem; index: number
           </a>
         </div>
         
-        <h3 className="text-lg font-bold leading-tight mb-2 group-hover:text-orange-400 transition-colors">
-          {item.title}
-        </h3>
+        <button 
+          onClick={onOpenDetail}
+          className="block group/title mb-2 text-left w-full"
+        >
+          <h3 className="text-lg font-bold leading-tight group-hover/title:text-orange-400 transition-colors line-clamp-2">
+            {item.title}
+          </h3>
+        </button>
         
-        <p className="text-sm text-white/50 line-clamp-2 leading-relaxed mb-4 flex-1">
+        <p className="text-sm text-white/50 line-clamp-2 leading-relaxed mb-4">
           {item.description.replace(/<[^>]*>?/gm, '')}
         </p>
 
-        <div className="flex items-center justify-between pt-4 border-t border-white/5">
+        <div className="mt-auto flex items-center justify-between pt-4 border-t border-white/5">
           <div className="flex gap-1">
             {['Politics', 'Tech', 'World'].slice(0, Math.floor(Math.random() * 2) + 1).map(tag => (
               <span key={tag} className="px-2 py-0.5 rounded-full bg-white/5 text-[9px] text-white/40 font-mono">
@@ -435,16 +474,21 @@ function NewsCard({ item, index, onImageClick }: { item: NewsItem; index: number
               </span>
             ))}
           </div>
-          <button className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 text-white/30 group-hover:text-white transition-colors">
+          <a 
+            href={item.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 text-white/30 hover:text-white transition-colors"
+          >
             Read Full <ChevronRight className="w-3 h-3" />
-          </button>
+          </a>
         </div>
       </div>
 
       {item.imageUrl && (
         <div 
           className="w-full md:w-[20%] h-48 md:h-auto relative cursor-zoom-in overflow-hidden"
-          onClick={onImageClick}
+          onClick={onOpenDetail}
         >
           <img 
             src={item.imageUrl} 
