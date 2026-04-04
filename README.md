@@ -70,10 +70,13 @@ The application requires connection to an Elasticsearch instance. Define the fol
 ## 🔍 Features
 
 - **Real-time News Feed**: Fetches and de-duplicates the latest articles from multiple RSS sources.
-- **Intelligent Search**: Full-text search powered by Elasticsearch across titles and descriptions.
+- **Intelligent Search**: High-relevance full-text search powered by Elasticsearch with **exact phrase boosting** for titles.
+- **Interactive News Cards**: Clicking a title or image opens a detailed modal for a deeper dive into the story.
+- **Enhanced Detail Popup**: View full descriptions, high-resolution images, and metadata (source and publication date) in a modern modal.
+- **Seamless Navigation**: Quick-access external links that automatically close the preview for a smooth browsing experience.
 - **Trending Topics**: Automated aggregation of popular tags and keywords.
-- **Robust Image Extraction**: Advanced parsing logic to retrieve images from standard and non-standard RSS fields (Media RSS, Enclosures, `image_url`).
-- **Responsive Design**: Optimized for desktop, tablet, and mobile viewing.
+- **Robust Image Extraction**: Advanced parsing logic to retrieve images from standard and non-standard RSS fields (Media RSS, Enclosures, `image_url`) with elegant fallbacks.
+- **Responsive Design**: Optimized for desktop, tablet, and mobile viewing with overflow-safe layouts.
 
 ---
 
