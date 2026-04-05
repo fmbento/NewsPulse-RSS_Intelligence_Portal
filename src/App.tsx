@@ -954,9 +954,7 @@ function NewsCard({ item, index, onOpenDetail, darkMode }: { item: NewsItem; ind
           <img 
             src={item.imageUrl} 
             alt={item.imageAlt || item.title}
-            className={`w-full h-full object-cover transition-all duration-500 scale-105 group-hover:scale-100 ${
-              darkMode ? 'grayscale group-hover:grayscale-0' : ''
-            }`}
+            className={`w-full h-full object-cover transition-all duration-500 scale-105 group-hover:scale-100 grayscale group-hover:grayscale-0`}
             referrerPolicy="no-referrer"
           />
           <div className={`absolute inset-0 transition-colors ${darkMode ? 'bg-black/20 group-hover:bg-transparent' : 'bg-transparent'}`} />
