@@ -70,7 +70,9 @@ The application requires connection to an Elasticsearch instance. Define the fol
 ## 🔍 Features
 
 - **Real-time News Feed**: Fetches and de-duplicates the latest articles from multiple RSS sources.
-- **Intelligent Search**: High-relevance full-text search powered by Elasticsearch with **exact phrase boosting** for titles.
+- **Language Filtering**: Filter news by English, Portuguese, Deutsch, Français, Español, and Italiano with persistent user preferences stored in cookies.
+- **Intelligent Search**: High-relevance full-text search powered by Elasticsearch with **exact phrase boosting** for titles, language-specific filtering, and **chronological sorting** (most recent first).
+- **Infinite Scroll**: Seamlessly browse millions of historical records with automatic pagination as you reach the end of the search results.
 - **Interactive News Cards**: Clicking a title or image opens a detailed modal for a deeper dive into the story.
 - **Enhanced Detail Popup**: View full descriptions, high-resolution images, and metadata (source and publication date) in a modern modal.
 - **Seamless Navigation**: Quick-access external links that automatically close the preview for a smooth browsing experience.
@@ -96,6 +98,21 @@ The application requires connection to an Elasticsearch instance. Define the fol
 ---
 
 ## 📜 Changelog
+
+### [0.5.1] - 2026-04-04
+- **Language Expansion**: Added Español and Italiano to the language filters.
+- **UI Polish**: Updated language filter sidebar with new SVG flags.
+
+### [0.5.0] - 2026-04-04
+- **Infinite Scroll**: Implemented automatic pagination for search results using `IntersectionObserver`.
+- **Chronological Search**: Updated search API to sort results by most recent first (`@timestamp` descending).
+- **Pagination Support**: Added `from` and `size` parameters to the search endpoint for efficient data fetching.
+
+### [0.4.0] - 2026-04-04
+- **Language Filtering**: Added sidebar filter for English, Português, Deutsch, and Français.
+- **Persistence**: Implemented `js-cookie` to save language preferences across sessions.
+- **Visuals**: Added flag icons for each language and updated tags to highlight language tags.
+- **Backend Integration**: Updated search API to support server-side language filtering.
 
 ### [0.3.1] - 2026-04-04
 - **Seamless Navigation**: Added external link button in detail popup with auto-close behavior.

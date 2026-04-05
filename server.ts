@@ -239,6 +239,7 @@ const fetchLatestFromES = async () => {
           description: cleanText(source.description),
           pubDate: source["@timestamp"],
           source: source["name"],
+          tags: source.tags || [],
           imageUrl: getImageUrl(source),
           imageAlt: source.mediaDescription || source.altText || null
         };
@@ -284,12 +285,70 @@ app.get("/api/stats", async (req, res) => {
 });
 
 app.get("/api/latest", async (req, res) => {
-  // Return cache immediately for fast session start
-  res.json(latestNewsCache);
-  
-  // Trigger a background refresh to ensure we have the absolute latest
-  // This satisfies the "immediately after retrieve the latests ones" requirement
-  fetchLatestFromES().catch(err => console.error("Async refresh failed:", err));
+  const { langs } = req.query;
+  try {
+    const query: any = {
+      bool: {
+        must: [
+          { exists: { field: "title" } },
+          { exists: { field: "@timestamp" } }
+        ],
+        filter: [{ 
+          range: { 
+            "@timestamp": { 
+              gte: "now-7d", 
+              lte: "now" 
+            } 
+          } 
+        }]
+      }
+    };
+
+    if (langs) {
+      const langList = (langs as string).split(",");
+      query.bool.filter.push({
+        terms: {
+          "tags.keyword": langList
+        }
+      });
+    }
+
+    const result = await esClient.search({
+      index: "*",
+      query,
+      sort: [{ "@timestamp": { order: "desc" } }],
+      size: 50,
+    } as any);
+
+    const seenTitles = new Set();
+    const uniqueHits = result.hits.hits
+      .map((hit: any) => {
+        const source = hit._source;
+        return {
+          ...source,
+          type: "news",
+          title: cleanText(source.title),
+          description: cleanText(source.description),
+          pubDate: source["@timestamp"],
+          source: source["name"],
+          tags: source.tags || [],
+          imageUrl: getImageUrl(source),
+          imageAlt: source.mediaDescription || source.altText || null
+        };
+      })
+      .filter((item: any) => {
+        if (!item.title) return false;
+        const normalizedTitle = item.title.toLowerCase().trim();
+        if (seenTitles.has(normalizedTitle)) return false;
+        seenTitles.add(normalizedTitle);
+        return true;
+      });
+
+    res.json(uniqueHits);
+  } catch (error: any) {
+    console.error("[API] Latest fetch error:", error.message);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Simple in-memory cache for trending topics
@@ -365,10 +424,23 @@ app.get("/api/debug/mapping", async (req, res) => {
 });
 
 app.get("/api/search", async (req, res) => {
-  const { q } = req.query;
+  const { q, langs, from = 0, size = 50 } = req.query;
   try {
+    const filter: any[] = [{ range: { "@timestamp": { lte: "now" } } }];
+    
+    if (langs) {
+      const langList = (langs as string).split(",");
+      filter.push({
+        terms: {
+          "tags.keyword": langList
+        }
+      });
+    }
+
     const result = await esClient.search({
       index: "*",
+      from: Number(from),
+      size: Number(size),
       query: {
         bool: {
           must: [
@@ -396,14 +468,12 @@ app.get("/api/search", async (req, res) => {
               }
             }
           ],
-          filter: [{ range: { "@timestamp": { lte: "now" } } }]
+          filter
         }
       },
       sort: [
-        { _score: { order: "desc" } },
         { "@timestamp": { order: "desc" } }
       ],
-      size: 200,
     } as any);
     
     const seenTitles = new Set();
@@ -416,6 +486,7 @@ app.get("/api/search", async (req, res) => {
           description: cleanText(source.description),
           pubDate: source["@timestamp"],
           source: source["name"],
+          tags: source.tags || [],
           imageUrl: getImageUrl(source),
           imageAlt: source.mediaDescription || source.altText || null
         };

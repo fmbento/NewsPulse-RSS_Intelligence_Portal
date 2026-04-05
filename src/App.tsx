@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, TrendingUp, Newspaper, Clock, ExternalLink, AlertCircle, Loader2, ChevronRight, X } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Search, TrendingUp, Newspaper, Clock, ExternalLink, AlertCircle, Loader2, ChevronRight, X, Languages, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatDistanceToNow } from 'date-fns';
+import Cookies from 'js-cookie';
 
 interface NewsItem {
   title: string;
@@ -11,7 +12,96 @@ interface NewsItem {
   source?: string;
   imageUrl?: string;
   imageAlt?: string;
+  tags?: string[];
 }
+
+const LANGUAGES = [
+  { 
+    id: 'English', 
+    label: 'English', 
+    flags: (
+      <div className="flex gap-1">
+        <svg className="w-5 h-3.5 rounded-sm shadow-sm" viewBox="0 0 60 30">
+          <clipPath id="s"><path d="M0,0 v30 h60 v-30 z"/></clipPath>
+          <path d="M0,0 v30 h60 v-30 z" fill="#012169"/>
+          <path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" strokeWidth="6"/>
+          <path d="M0,0 L60,30 M60,0 L0,30" stroke="#C8102E" strokeWidth="4"/>
+          <path d="M30,0 v30 M0,15 h60" stroke="#fff" strokeWidth="10"/>
+          <path d="M30,0 v30 M0,15 h60" stroke="#C8102E" strokeWidth="6"/>
+        </svg>
+        <svg className="w-5 h-3.5 rounded-sm shadow-sm" viewBox="0 0 7410 3900">
+          <rect width="7410" height="3900" fill="#3c3b6e"/>
+          <path d="M0,450H7410M0,1050H7410M0,1650H7410M0,2250H7410M0,2850H7410M0,3450H7410" stroke="#fff" strokeWidth="300"/>
+          <path d="M0,150H7410M0,750H7410M0,1350H7410M0,1950H7410M0,2550H7410M0,3150H7410M0,3750H7410" stroke="#b22234" strokeWidth="300"/>
+          <rect width="2964" height="2100" fill="#3c3b6e"/>
+        </svg>
+      </div>
+    )
+  },
+  { 
+    id: 'Português', 
+    label: 'Português', 
+    flags: (
+      <div className="flex gap-1">
+        <svg className="w-5 h-3.5 rounded-sm shadow-sm" viewBox="0 0 600 400">
+          <rect width="240" height="400" fill="#006600"/>
+          <rect x="240" width="360" height="400" fill="#FF0000"/>
+          <circle cx="240" cy="200" r="80" fill="#FFFF00"/>
+        </svg>
+        <svg className="w-5 h-3.5 rounded-sm shadow-sm" viewBox="0 0 1000 700">
+          <rect width="1000" height="700" fill="#009739"/>
+          <path d="M500,50 L950,350 L500,650 L50,350 Z" fill="#fedd00"/>
+          <circle cx="500" cy="350" r="175" fill="#012169"/>
+        </svg>
+      </div>
+    )
+  },
+  { 
+    id: 'Deutsch', 
+    label: 'Deutsch', 
+    flags: (
+      <svg className="w-5 h-3.5 rounded-sm shadow-sm" viewBox="0 0 5 3">
+        <rect width="5" height="3" y="0" fill="#000"/>
+        <rect width="5" height="2" y="1" fill="#D00"/>
+        <rect width="5" height="1" y="2" fill="#FFCE00"/>
+      </svg>
+    )
+  },
+  { 
+    id: 'Français', 
+    label: 'Français', 
+    flags: (
+      <svg className="w-5 h-3.5 rounded-sm shadow-sm" viewBox="0 0 3 2">
+        <rect width="1" height="2" x="0" fill="#002395"/>
+        <rect width="1" height="2" x="1" fill="#fff"/>
+        <rect width="1" height="2" x="2" fill="#ED2939"/>
+      </svg>
+    )
+  },
+  { 
+    id: 'Español', 
+    label: 'Español', 
+    flags: (
+      <svg className="w-5 h-3.5 rounded-sm shadow-sm" viewBox="0 0 750 500">
+        <rect width="750" height="500" fill="#c60b1e"/>
+        <rect width="750" height="250" y="125" fill="#ffc400"/>
+      </svg>
+    )
+  },
+  { 
+    id: 'Italiano', 
+    label: 'Italiano', 
+    flags: (
+      <svg className="w-5 h-3.5 rounded-sm shadow-sm" viewBox="0 0 3 2">
+        <rect width="1" height="2" x="0" fill="#009246"/>
+        <rect width="1" height="2" x="1" fill="#fff"/>
+        <rect width="1" height="2" x="2" fill="#ce2b37"/>
+      </svg>
+    )
+  },
+];
+
+const COOKIE_NAME = 'newspulse_languages';
 
 interface TrendingTopic {
   key: string;
@@ -19,12 +109,19 @@ interface TrendingTopic {
 }
 
 export default function App() {
+  const [selectedLangs, setSelectedLangs] = useState<string[]>(() => {
+    const saved = Cookies.get(COOKIE_NAME);
+    return saved ? JSON.parse(saved) : LANGUAGES.map(l => l.id);
+  });
   const [latestNews, setLatestNews] = useState<NewsItem[]>([]);
   const [trending, setTrending] = useState<TrendingTopic[]>([]);
   const [searchResults, setSearchResults] = useState<NewsItem[]>([]);
   const [totalRecords, setTotalRecords] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [searchPage, setSearchPage] = useState(0);
+  const [hasMoreSearch, setHasMoreSearch] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'river' | 'search'>('river');
@@ -76,6 +173,18 @@ export default function App() {
     return response;
   };
 
+  useEffect(() => {
+    Cookies.set(COOKIE_NAME, JSON.stringify(selectedLangs), { expires: 365 });
+    
+    // Re-fetch when languages change
+    if (activeTab === 'river') {
+      fetchInitialData();
+    } else if (activeTab === 'search' && searchQuery) {
+      const e = { preventDefault: () => {} } as React.FormEvent;
+      handleSearch(e);
+    }
+  }, [selectedLangs]);
+
   const fetchInitialData = async () => {
     setIsLoading(true);
     setError(null);
@@ -93,8 +202,9 @@ export default function App() {
 
     try {
       // Fetch latest and trending in parallel with individual error handling
+      const langsParam = selectedLangs.join(',');
       const [latestRes, trendingRes] = await Promise.all([
-        fetchWithTimeout('/api/latest', { timeout: 30000 }).catch(e => ({ ok: false, statusText: e.message })),
+        fetchWithTimeout(`/api/latest?langs=${encodeURIComponent(langsParam)}`, { timeout: 30000 }).catch(e => ({ ok: false, statusText: e.message })),
         fetchWithTimeout('/api/trending', { timeout: 30000 }).catch(e => ({ ok: false, statusText: e.message }))
       ]);
 
@@ -148,17 +258,60 @@ export default function App() {
 
     setIsSearching(true);
     setActiveTab('search');
+    setSearchPage(0);
+    setHasMoreSearch(true);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
+      const langsParam = selectedLangs.join(',');
+      const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&langs=${encodeURIComponent(langsParam)}&from=0&size=50`);
       if (res.ok) {
         const data = await res.json();
         setSearchResults(data);
+        if (data.length < 50) setHasMoreSearch(false);
       }
     } catch (err) {
       console.error('Search failed');
     } finally {
       setIsSearching(false);
     }
+  };
+
+  const loadMoreSearch = async () => {
+    if (isLoadingMore || !hasMoreSearch || !searchQuery) return;
+    
+    setIsLoadingMore(true);
+    const nextPage = searchPage + 1;
+    const from = nextPage * 50;
+    
+    try {
+      const langsParam = selectedLangs.join(',');
+      const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&langs=${encodeURIComponent(langsParam)}&from=${from}&size=50`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.length === 0) {
+          setHasMoreSearch(false);
+        } else {
+          setSearchResults(prev => [...prev, ...data]);
+          setSearchPage(nextPage);
+          if (data.length < 50) setHasMoreSearch(false);
+        }
+      }
+    } catch (err) {
+      console.error('Load more failed');
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
+  const observer = useRef<IntersectionObserver | null>(null);
+  const lastElementRef = (node: HTMLDivElement | null) => {
+    if (isSearching || isLoadingMore) return;
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMoreSearch) {
+        loadMoreSearch();
+      }
+    });
+    if (node) observer.current.observe(node);
   };
 
   return (
@@ -195,8 +348,45 @@ export default function App() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left Sidebar: Trending */}
+        {/* Left Sidebar: Trending & Filters */}
         <aside className="lg:col-span-3 space-y-8">
+          <section>
+            <div className="flex items-center gap-2 mb-4 text-orange-500">
+              <Languages className="w-5 h-5" />
+              <h2 className="font-bold uppercase tracking-widest text-xs">Language Filter</h2>
+            </div>
+            <div className="space-y-1 bg-white/5 p-3 rounded-xl border border-white/10">
+              {LANGUAGES.map((lang) => (
+                <label
+                  key={lang.id}
+                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 cursor-pointer transition-colors group"
+                >
+                  <div className="relative flex items-center justify-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedLangs.includes(lang.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedLangs([...selectedLangs, lang.id]);
+                        } else {
+                          setSelectedLangs(selectedLangs.filter(id => id !== lang.id));
+                        }
+                      }}
+                      className="peer appearance-none w-4 h-4 rounded border border-white/20 checked:bg-orange-600 checked:border-orange-600 transition-all"
+                    />
+                    <Check className="absolute w-3 h-3 text-black opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
+                  </div>
+                  <span className="text-sm flex items-center gap-2">
+                    <span className="text-base grayscale group-hover:grayscale-0 transition-all">{lang.flags}</span>
+                    <span className={`${selectedLangs.includes(lang.id) ? 'text-white' : 'text-white/40'} transition-colors`}>
+                      {lang.label}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </section>
+
           <section>
             <div className="flex items-center gap-2 mb-4 text-orange-500">
               <TrendingUp className="w-5 h-5" />
@@ -300,6 +490,12 @@ export default function App() {
                     return <Card key={`${item.link}-${i}`} item={item} index={i} onOpenDetail={() => setSelectedImage(item)} />;
                   })}
                 </AnimatePresence>
+                {latestNews.length === 0 && !isLoading && (
+                  <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-2xl">
+                    <Languages className="w-12 h-12 text-white/10 mx-auto mb-4" />
+                    <p className="text-white/40 text-sm">No news matching your language filters</p>
+                  </div>
+                )}
                 {isLoading && (
                   <div className="flex justify-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
@@ -314,14 +510,33 @@ export default function App() {
                     <p className="text-sm font-mono text-white/40">Querying historical index...</p>
                   </div>
                 ) : searchResults.length > 0 ? (
-                  searchResults.map((item, i) => {
-                    const Card = NewsCard as any;
-                    return <Card key={`search-${item.link}-${i}`} item={item} index={i} onOpenDetail={() => setSelectedImage(item)} />;
-                  })
+                  <>
+                    {searchResults.map((item, i) => {
+                      const Card = NewsCard as any;
+                      const isLast = i === searchResults.length - 1;
+                      return (
+                        <div key={`search-${item.link}-${i}`} ref={isLast ? lastElementRef : null}>
+                          <Card item={item} index={i} onOpenDetail={() => setSelectedImage(item)} />
+                        </div>
+                      );
+                    })}
+                    {isLoadingMore && (
+                      <div className="flex justify-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+                      </div>
+                    )}
+                    {!hasMoreSearch && searchResults.length > 0 && (
+                      <div className="text-center py-8 text-white/20 text-xs font-mono uppercase tracking-widest">
+                        End of historical records
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-2xl">
                     <Search className="w-12 h-12 text-white/10 mx-auto mb-4" />
-                    <p className="text-white/40 text-sm">Enter a query to search millions of records</p>
+                    <p className="text-white/40 text-sm">
+                      {searchResults.length > 0 ? 'No results matching your language filters' : 'Enter a query to search millions of records'}
+                    </p>
                   </div>
                 )}
               </div>
@@ -467,12 +682,20 @@ function NewsCard({ item, index, onOpenDetail }: { item: NewsItem; index: number
         </p>
 
         <div className="mt-auto flex items-center justify-between pt-4 border-t border-white/5">
-          <div className="flex gap-1">
-            {['Politics', 'Tech', 'World'].slice(0, Math.floor(Math.random() * 2) + 1).map(tag => (
-              <span key={tag} className="px-2 py-0.5 rounded-full bg-white/5 text-[9px] text-white/40 font-mono">
-                #{tag.toUpperCase()}
-              </span>
-            ))}
+          <div className="flex flex-wrap gap-1">
+            {item.tags && item.tags.length > 0 ? (
+              item.tags.slice(0, 3).map(tag => (
+                <span key={tag} className={`px-2 py-0.5 rounded-full text-[9px] font-mono ${LANGUAGES.some(l => l.id === tag) ? 'bg-orange-600/20 text-orange-400' : 'bg-white/5 text-white/40'}`}>
+                  #{tag.toUpperCase()}
+                </span>
+              ))
+            ) : (
+              ['Politics', 'Tech', 'World'].slice(0, Math.floor(Math.random() * 2) + 1).map(tag => (
+                <span key={tag} className="px-2 py-0.5 rounded-full bg-white/5 text-[9px] text-white/40 font-mono">
+                  #{tag.toUpperCase()}
+                </span>
+              ))
+            )}
           </div>
           <a 
             href={item.link}
