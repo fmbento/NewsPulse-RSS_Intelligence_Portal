@@ -3,6 +3,8 @@ import { Search, TrendingUp, Newspaper, Clock, ExternalLink, AlertCircle, Loader
 import { motion, AnimatePresence } from 'motion/react';
 import { formatDistanceToNow } from 'date-fns';
 import Cookies from 'js-cookie';
+import he from 'he';
+import DOMPurify from 'dompurify';
 
 interface NewsItem {
   title: string;
@@ -108,6 +110,31 @@ interface TrendingTopic {
   key: string;
   doc_count: number;
 }
+
+const DescriptionRenderer = ({ item, darkMode, isModal = false }: { item: NewsItem; darkMode: boolean; isModal?: boolean }) => {
+  const isGoogleNews = item.source?.startsWith('Google News:');
+  
+  if (isGoogleNews) {
+    try {
+      const decoded = he.decode(item.description);
+      const sanitized = DOMPurify.sanitize(decoded);
+      return (
+        <div 
+          className={`${isModal ? 'text-sm md:text-base' : 'text-sm line-clamp-2'} leading-relaxed google-news-html [&_a]:text-orange-500 [&_a]:hover:underline [&_ul]:list-disc [&_ul]:ml-4`}
+          dangerouslySetInnerHTML={{ __html: sanitized }} 
+        />
+      );
+    } catch (e) {
+      console.error('Error decoding HTML:', e);
+    }
+  }
+  
+  return (
+    <span className={isModal ? '' : 'line-clamp-2'}>
+      {item.description.replace(/<[^>]*>?/gm, '')}
+    </span>
+  );
+};
 
 export default function App() {
   const [selectedLangs, setSelectedLangs] = useState<string[]>(() => {
@@ -694,9 +721,13 @@ export default function App() {
               <div className={`absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t ${
                 darkMode ? 'from-black/80 to-transparent' : 'from-white/80 to-transparent'
               }`}>
-                <p className={`text-sm md:text-base max-w-4xl ${darkMode ? 'text-white/80' : 'text-black/80'}`}>
-                  {selectedImage.imageAlt || selectedImage.description.replace(/<[^>]*>?/gm, '')}
-                </p>
+                <div className={`max-w-4xl ${darkMode ? 'text-white/80' : 'text-black/80'}`}>
+                  {selectedImage.imageAlt ? (
+                    <p className="text-sm md:text-base">{selectedImage.imageAlt}</p>
+                  ) : (
+                    <DescriptionRenderer item={selectedImage} darkMode={darkMode} isModal={true} />
+                  )}
+                </div>
               </div>
             </motion.div>
           </motion.div>
@@ -760,11 +791,11 @@ function NewsCard({ item, index, onOpenDetail, darkMode }: { item: NewsItem; ind
           </h3>
         </button>
         
-        <p className={`text-sm line-clamp-2 leading-relaxed mb-4 ${
+        <div className={`text-sm leading-relaxed mb-4 ${
           darkMode ? 'text-white/50' : 'text-black/60'
         }`}>
-          {item.description.replace(/<[^>]*>?/gm, '')}
-        </p>
+          <DescriptionRenderer item={item} darkMode={darkMode} />
+        </div>
 
         <div className={`mt-auto flex items-center justify-between pt-4 border-t ${
           darkMode ? 'border-white/5' : 'border-black/5'
