@@ -99,6 +99,11 @@ The application requires connection to an Elasticsearch instance. Define the fol
 
 ## 📜 Changelog
 
+### [0.6.0] - 2026-04-05
+- **Dark/Light Mode**: Implemented a theme toggle with persistence using cookies.
+- **UI Refinement**: Updated all components (Header, Sidebar, NewsCard, Modals) to support both dark and light themes.
+- **Responsive Design**: Ensured theme consistency across mobile and desktop views.
+
 ### [0.5.1] - 2026-04-04
 - **Language Expansion**: Added Español and Italiano to the language filters.
 - **UI Polish**: Updated language filter sidebar with new SVG flags.

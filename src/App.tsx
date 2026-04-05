@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, TrendingUp, Newspaper, Clock, ExternalLink, AlertCircle, Loader2, ChevronRight, X, Languages, Check } from 'lucide-react';
+import { Search, TrendingUp, Newspaper, Clock, ExternalLink, AlertCircle, Loader2, ChevronRight, X, Languages, Check, Sun, Moon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatDistanceToNow } from 'date-fns';
 import Cookies from 'js-cookie';
@@ -102,6 +102,7 @@ const LANGUAGES = [
 ];
 
 const COOKIE_NAME = 'newspulse_languages';
+const THEME_COOKIE_NAME = 'newspulse_theme';
 
 interface TrendingTopic {
   key: string;
@@ -112,6 +113,10 @@ export default function App() {
   const [selectedLangs, setSelectedLangs] = useState<string[]>(() => {
     const saved = Cookies.get(COOKIE_NAME);
     return saved ? JSON.parse(saved) : LANGUAGES.map(l => l.id);
+  });
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    const saved = Cookies.get(THEME_COOKIE_NAME);
+    return saved ? saved === 'dark' : true;
   });
   const [latestNews, setLatestNews] = useState<NewsItem[]>([]);
   const [trending, setTrending] = useState<TrendingTopic[]>([]);
@@ -184,6 +189,10 @@ export default function App() {
       handleSearch(e);
     }
   }, [selectedLangs]);
+
+  useEffect(() => {
+    Cookies.set(THEME_COOKIE_NAME, darkMode ? 'dark' : 'light', { expires: 365 });
+  }, [darkMode]);
 
   const fetchInitialData = async () => {
     setIsLoading(true);
@@ -315,29 +324,47 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#e0e0e0] font-sans selection:bg-orange-500/30">
+    <div className={`min-h-screen font-sans selection:bg-orange-500/30 transition-colors duration-300 ${
+      darkMode ? 'bg-[#0a0a0a] text-[#e0e0e0]' : 'bg-[#f8f9fa] text-[#212529]'
+    }`}>
       {/* Header */}
-      <header className="border-b border-white/10 bg-black/50 backdrop-blur-md sticky top-0 z-50">
+      <header className={`border-b backdrop-blur-md sticky top-0 z-50 transition-colors duration-300 ${
+        darkMode ? 'border-white/10 bg-black/50' : 'border-black/10 bg-white/80'
+      }`}>
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-orange-600 rounded flex items-center justify-center font-bold text-black">NP</div>
-            <h1 className="text-xl font-bold tracking-tighter uppercase">NewsPulse</h1>
+            <div className="w-8 h-8 bg-orange-600 rounded flex items-center justify-center font-bold text-black shadow-lg shadow-orange-600/20">NP</div>
+            <h1 className={`text-xl font-bold tracking-tighter uppercase ${darkMode ? 'text-white' : 'text-black'}`}>NewsPulse</h1>
           </div>
 
           <form onSubmit={handleSearch} className="flex-1 max-w-md mx-8 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${darkMode ? 'text-white/40' : 'text-black/40'}`} />
             <input
               type="text"
               placeholder="Search historical news..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 focus:outline-none focus:border-orange-500/50 transition-colors text-sm"
+              className={`w-full rounded-full py-2 pl-10 pr-4 focus:outline-none focus:border-orange-500/50 transition-all text-sm ${
+                darkMode 
+                  ? 'bg-white/5 border-white/10 text-white placeholder:text-white/20' 
+                  : 'bg-black/5 border-black/10 text-black placeholder:text-black/30'
+              }`}
             />
           </form>
 
-          <div className="flex items-center gap-4 text-xs font-mono text-white/40">
+          <div className={`flex items-center gap-4 text-xs font-mono ${darkMode ? 'text-white/40' : 'text-black/40'}`}>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className={`p-2 rounded-full transition-all hover:scale-110 active:scale-95 ${
+                darkMode ? 'bg-white/5 hover:bg-white/10 text-orange-400' : 'bg-black/5 hover:bg-black/10 text-orange-600'
+              }`}
+              title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+            >
+              {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+
             <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
               LIVE
             </div>
             <div className="hidden sm:block">
@@ -355,11 +382,15 @@ export default function App() {
               <Languages className="w-5 h-5" />
               <h2 className="font-bold uppercase tracking-widest text-xs">Language Filter</h2>
             </div>
-            <div className="space-y-1 bg-white/5 p-3 rounded-xl border border-white/10">
+            <div className={`space-y-1 p-3 rounded-xl border transition-colors duration-300 ${
+              darkMode ? 'bg-white/5 border-white/10' : 'bg-white border-black/10 shadow-sm'
+            }`}>
               {LANGUAGES.map((lang) => (
                 <label
                   key={lang.id}
-                  className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 cursor-pointer transition-colors group"
+                  className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors group ${
+                    darkMode ? 'hover:bg-white/5' : 'hover:bg-black/5'
+                  }`}
                 >
                   <div className="relative flex items-center justify-center">
                     <input
@@ -372,13 +403,17 @@ export default function App() {
                           setSelectedLangs(selectedLangs.filter(id => id !== lang.id));
                         }
                       }}
-                      className="peer appearance-none w-4 h-4 rounded border border-white/20 checked:bg-orange-600 checked:border-orange-600 transition-all"
+                      className={`peer appearance-none w-4 h-4 rounded border transition-all ${
+                        darkMode ? 'border-white/20 checked:bg-orange-600 checked:border-orange-600' : 'border-black/20 checked:bg-orange-600 checked:border-orange-600'
+                      }`}
                     />
-                    <Check className="absolute w-3 h-3 text-black opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
+                    <Check className={`absolute w-3 h-3 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none ${
+                      darkMode ? 'text-black' : 'text-white'
+                    }`} />
                   </div>
                   <span className="text-sm flex items-center gap-2">
                     <span className="text-base grayscale group-hover:grayscale-0 transition-all">{lang.flags}</span>
-                    <span className={`${selectedLangs.includes(lang.id) ? 'text-white' : 'text-white/40'} transition-colors`}>
+                    <span className={`${selectedLangs.includes(lang.id) ? (darkMode ? 'text-white' : 'text-black') : (darkMode ? 'text-white/40' : 'text-black/40')} transition-colors`}>
                       {lang.label}
                     </span>
                   </span>
@@ -401,33 +436,41 @@ export default function App() {
                       setSearchQuery(topic.key);
                       handleSearch({ preventDefault: () => {} } as any);
                     }}
-                    className="w-full text-left p-3 rounded-lg bg-white/5 border border-transparent hover:border-white/10 hover:bg-white/10 transition-all group flex items-center justify-between"
+                    className={`w-full text-left p-3 rounded-lg border transition-all group flex items-center justify-between ${
+                      darkMode 
+                        ? 'bg-white/5 border-transparent hover:border-white/10 hover:bg-white/10' 
+                        : 'bg-white border-black/5 hover:border-black/10 hover:bg-gray-50 shadow-sm'
+                    }`}
                   >
                     <div className="flex items-center gap-3">
-                      <span className="text-white/20 font-mono text-xs">0{i + 1}</span>
-                      <span className="text-sm font-medium group-hover:text-orange-400 transition-colors truncate max-w-[140px]">
+                      <span className={`font-mono text-xs ${darkMode ? 'text-white/20' : 'text-black/20'}`}>0{i + 1}</span>
+                      <span className={`text-sm font-medium transition-colors truncate max-w-[140px] ${
+                        darkMode ? 'text-white group-hover:text-orange-400' : 'text-black group-hover:text-orange-600'
+                      }`}>
                         {topic.key}
                       </span>
                     </div>
-                    <span className="text-[10px] font-mono text-white/30">{topic.doc_count}</span>
+                    <span className={`text-[10px] font-mono ${darkMode ? 'text-white/30' : 'text-black/30'}`}>{topic.doc_count}</span>
                   </button>
                 ))
               ) : (
-                <div className="text-xs text-white/30 italic">No trends detected</div>
+                <div className={`text-xs italic ${darkMode ? 'text-white/30' : 'text-black/30'}`}>No trends detected</div>
               )}
             </div>
           </section>
 
-          <section className="p-4 rounded-xl bg-orange-600/10 border border-orange-600/20">
+          <section className={`p-4 rounded-xl border transition-colors duration-300 ${
+            darkMode ? 'bg-orange-600/10 border-orange-600/20' : 'bg-orange-50 border-orange-200'
+          }`}>
             <h3 className="text-orange-500 font-bold text-xs uppercase mb-2">System Status</h3>
             <div className="space-y-2">
-              <p className="text-[10px] leading-relaxed text-white/60">
+              <p className={`text-[10px] leading-relaxed ${darkMode ? 'text-white/60' : 'text-black/60'}`}>
                 Connected to Elasticsearch cluster. Monitoring 42 active RSS feeds. Real-time indexing enabled.
               </p>
               {totalRecords !== null && (
-                <div className="pt-2 border-t border-orange-600/20">
-                  <div className="text-[10px] text-white/40 uppercase font-mono">Total Records</div>
-                  <div className="text-lg font-bold text-white tracking-tight">
+                <div className={`pt-2 border-t ${darkMode ? 'border-orange-600/20' : 'border-orange-200'}`}>
+                  <div className={`text-[10px] uppercase font-mono ${darkMode ? 'text-white/40' : 'text-black/40'}`}>Total Records</div>
+                  <div className={`text-lg font-bold tracking-tight ${darkMode ? 'text-white' : 'text-black'}`}>
                     {totalRecords.toLocaleString()}
                   </div>
                 </div>
@@ -438,11 +481,13 @@ export default function App() {
 
         {/* Main Content: News River or Search */}
         <div className="lg:col-span-9">
-          <div className="flex items-center gap-6 border-b border-white/10 mb-6">
+          <div className={`flex items-center gap-6 border-b mb-6 ${darkMode ? 'border-white/10' : 'border-black/10'}`}>
             <button
               onClick={() => setActiveTab('river')}
               className={`pb-4 text-sm font-bold uppercase tracking-widest transition-colors relative ${
-                activeTab === 'river' ? 'text-white' : 'text-white/40 hover:text-white/60'
+                activeTab === 'river' 
+                  ? (darkMode ? 'text-white' : 'text-black') 
+                  : (darkMode ? 'text-white/40 hover:text-white/60' : 'text-black/40 hover:text-black/60')
               }`}
             >
               News River
@@ -453,7 +498,9 @@ export default function App() {
             <button
               onClick={() => setActiveTab('search')}
               className={`pb-4 text-sm font-bold uppercase tracking-widest transition-colors relative ${
-                activeTab === 'search' ? 'text-white' : 'text-white/40 hover:text-white/60'
+                activeTab === 'search' 
+                  ? (darkMode ? 'text-white' : 'text-black') 
+                  : (darkMode ? 'text-white/40 hover:text-white/60' : 'text-black/40 hover:text-black/60')
               }`}
             >
               Search Results
@@ -485,10 +532,16 @@ export default function App() {
             {activeTab === 'river' ? (
               <div ref={riverRef} className="space-y-4">
                 <AnimatePresence mode="popLayout">
-                  {latestNews.map((item, i) => {
-                    const Card = NewsCard as any;
-                    return <Card key={`${item.link}-${i}`} item={item} index={i} onOpenDetail={() => setSelectedImage(item)} />;
-                  })}
+                    {latestNews.map((item, i) => (
+                      <div key={`${item.link}-${i}`}>
+                        <NewsCard 
+                          item={item} 
+                          index={i} 
+                          onOpenDetail={() => setSelectedImage(item)} 
+                          darkMode={darkMode}
+                        />
+                      </div>
+                    ))}
                 </AnimatePresence>
                 {latestNews.length === 0 && !isLoading && (
                   <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-2xl">
@@ -511,14 +564,16 @@ export default function App() {
                   </div>
                 ) : searchResults.length > 0 ? (
                   <>
-                    {searchResults.map((item, i) => {
-                      const Card = NewsCard as any;
-                      return (
-                        <div key={`search-${item.link}-${i}`}>
-                          <Card item={item} index={i} onOpenDetail={() => setSelectedImage(item)} />
-                        </div>
-                      );
-                    })}
+                    {searchResults.map((item, i) => (
+                      <div key={`search-${item.link}-${i}`}>
+                        <NewsCard 
+                          item={item} 
+                          index={i} 
+                          onOpenDetail={() => setSelectedImage(item)} 
+                          darkMode={darkMode}
+                        />
+                      </div>
+                    ))}
                     
                     {/* Sentinel for Infinite Scroll */}
                     <div ref={lastElementRef} className="h-10 flex items-center justify-center">
@@ -554,20 +609,26 @@ export default function App() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 p-4 md:p-8"
+            className={`fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 backdrop-blur-sm ${
+              darkMode ? 'bg-black/95' : 'bg-white/90'
+            }`}
             onClick={() => setSelectedImage(null)}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="relative w-[90vw] h-[90vh] bg-black rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center"
+              className={`relative w-[90vw] h-[90vh] rounded-2xl overflow-hidden shadow-2xl flex items-center justify-center border transition-colors duration-300 ${
+                darkMode ? 'bg-black border-white/10' : 'bg-white border-black/10'
+              }`}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Close Button */}
               <button
                 onClick={() => setSelectedImage(null)}
-                className="absolute top-6 right-6 z-50 p-2 bg-black/50 hover:bg-white/20 rounded-full text-white transition-colors"
+                className={`absolute top-6 right-6 z-50 p-2 rounded-full transition-colors ${
+                  darkMode ? 'bg-black/50 hover:bg-white/20 text-white' : 'bg-white/50 hover:bg-black/10 text-black'
+                }`}
               >
                 <X className="w-6 h-6" />
               </button>
@@ -578,10 +639,12 @@ export default function App() {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setSelectedImage(null)}
-                className="absolute top-20 right-6 z-50 p-2 bg-black/50 hover:bg-orange-600 rounded-full text-white transition-colors group/link"
+                className={`absolute top-20 right-6 z-50 p-2 rounded-full transition-colors group/link ${
+                  darkMode ? 'bg-black/50 hover:bg-orange-600 text-white' : 'bg-white/50 hover:bg-orange-600 text-black'
+                }`}
                 title="Open original article"
               >
-                <ExternalLink className="w-6 h-6 group-hover/link:text-black" />
+                <ExternalLink className={`w-6 h-6 transition-colors ${darkMode ? 'group-hover/link:text-black' : 'group-hover/link:text-white'}`} />
               </a>
 
               {/* Image */}
@@ -593,19 +656,23 @@ export default function App() {
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-white/5">
-                  <Newspaper className="w-24 h-24 text-white/10" />
+                <div className={`w-full h-full flex items-center justify-center ${darkMode ? 'bg-white/5' : 'bg-black/5'}`}>
+                  <Newspaper className={`w-24 h-24 ${darkMode ? 'text-white/10' : 'text-black/10'}`} />
                 </div>
               )}
 
               {/* Top Overlay: Title and Metadata */}
-              <div className="absolute top-0 left-0 right-0 p-8 bg-gradient-to-b from-black/90 via-black/60 to-transparent">
+              <div className={`absolute top-0 left-0 right-0 p-8 bg-gradient-to-b ${
+                darkMode ? 'from-black/90 via-black/60 to-transparent' : 'from-white/90 via-white/60 to-transparent'
+              }`}>
                 <div className="flex items-center gap-3 text-xs md:text-sm font-mono text-orange-500 mb-3 uppercase tracking-wider">
-                  <span className="bg-orange-600/20 px-2 py-0.5 rounded border border-orange-600/30">
+                  <span className={`px-2 py-0.5 rounded border ${
+                    darkMode ? 'bg-orange-600/20 border-orange-600/30' : 'bg-orange-100 border-orange-200'
+                  }`}>
                     {selectedImage.source || 'Global Feed'}
                   </span>
-                  <span className="text-white/40">•</span>
-                  <span className="flex items-center gap-1.5 text-white/60">
+                  <span className={darkMode ? 'text-white/40' : 'text-black/40'}>•</span>
+                  <span className={`flex items-center gap-1.5 ${darkMode ? 'text-white/60' : 'text-black/60'}`}>
                     <Clock className="w-3.5 h-3.5" />
                     {new Date(selectedImage.pubDate).toLocaleDateString('en-US', { 
                       month: 'long', 
@@ -616,14 +683,18 @@ export default function App() {
                     })}
                   </span>
                 </div>
-                <h2 className="text-2xl md:text-4xl font-bold text-white max-w-4xl leading-tight tracking-tight">
+                <h2 className={`text-2xl md:text-4xl font-bold max-w-4xl leading-tight tracking-tight ${
+                  darkMode ? 'text-white' : 'text-black'
+                }`}>
                   {selectedImage.title}
                 </h2>
               </div>
 
               {/* Bottom Overlay: Description */}
-              <div className="absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t from-black/80 to-transparent">
-                <p className="text-sm md:text-base text-white/80 max-w-4xl">
+              <div className={`absolute bottom-0 left-0 right-0 p-8 bg-gradient-to-t ${
+                darkMode ? 'from-black/80 to-transparent' : 'from-white/80 to-transparent'
+              }`}>
+                <p className={`text-sm md:text-base max-w-4xl ${darkMode ? 'text-white/80' : 'text-black/80'}`}>
                   {selectedImage.imageAlt || selectedImage.description.replace(/<[^>]*>?/gm, '')}
                 </p>
               </div>
@@ -635,7 +706,7 @@ export default function App() {
   );
 }
 
-function NewsCard({ item, index, onOpenDetail }: { item: NewsItem; index: number; onOpenDetail: () => void }) {
+function NewsCard({ item, index, onOpenDetail, darkMode }: { item: NewsItem; index: number; onOpenDetail: () => void; darkMode: boolean }) {
   const safeDate = (dateStr: string) => {
     try {
       const d = new Date(dateStr);
@@ -650,21 +721,29 @@ function NewsCard({ item, index, onOpenDetail }: { item: NewsItem; index: number
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.05, 0.5) }}
-      className="group bg-white/5 border border-white/10 rounded-xl overflow-hidden hover:bg-white/[0.08] hover:border-white/20 transition-all flex flex-col md:flex-row"
+      className={`group border rounded-xl overflow-hidden transition-all flex flex-col md:flex-row ${
+        darkMode 
+          ? 'bg-white/5 border-white/10 hover:bg-white/[0.08] hover:border-white/20' 
+          : 'bg-white border-black/10 hover:bg-gray-50 hover:border-black/20 shadow-sm'
+      }`}
     >
       <div className="flex-1 p-5 flex flex-col min-w-0">
         <div className="flex justify-between items-start gap-4 mb-3">
-          <div className="flex items-center gap-2 text-[10px] font-mono text-orange-500/80 uppercase tracking-tighter">
+          <div className={`flex items-center gap-2 text-[10px] font-mono uppercase tracking-tighter ${
+            darkMode ? 'text-orange-500/80' : 'text-orange-600'
+          }`}>
             <Clock className="w-3 h-3" />
             {formatDistanceToNow(safeDate(item.pubDate), { addSuffix: true })}
-            <span className="text-white/20">•</span>
-            <span className="text-white/40">{item.source || 'Global Feed'}</span>
+            <span className={darkMode ? 'text-white/20' : 'text-black/20'}>•</span>
+            <span className={darkMode ? 'text-white/40' : 'text-black/40'}>{item.source || 'Global Feed'}</span>
           </div>
           <a
             href={item.link}
             target="_blank"
             rel="noopener noreferrer"
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-white/10 rounded-md hover:bg-orange-600 hover:text-black"
+            className={`opacity-0 group-hover:opacity-100 transition-all p-1.5 rounded-md ${
+              darkMode ? 'bg-white/10 text-white hover:bg-orange-600 hover:text-black' : 'bg-black/5 text-black hover:bg-orange-600 hover:text-white'
+            }`}
           >
             <ExternalLink className="w-3 h-3" />
           </a>
@@ -674,26 +753,38 @@ function NewsCard({ item, index, onOpenDetail }: { item: NewsItem; index: number
           onClick={onOpenDetail}
           className="block group/title mb-2 text-left w-full"
         >
-          <h3 className="text-lg font-bold leading-tight group-hover/title:text-orange-400 transition-colors line-clamp-2">
+          <h3 className={`text-lg font-bold leading-tight transition-colors line-clamp-2 ${
+            darkMode ? 'text-white group-hover/title:text-orange-400' : 'text-black group-hover/title:text-orange-600'
+          }`}>
             {item.title}
           </h3>
         </button>
         
-        <p className="text-sm text-white/50 line-clamp-2 leading-relaxed mb-4">
+        <p className={`text-sm line-clamp-2 leading-relaxed mb-4 ${
+          darkMode ? 'text-white/50' : 'text-black/60'
+        }`}>
           {item.description.replace(/<[^>]*>?/gm, '')}
         </p>
 
-        <div className="mt-auto flex items-center justify-between pt-4 border-t border-white/5">
+        <div className={`mt-auto flex items-center justify-between pt-4 border-t ${
+          darkMode ? 'border-white/5' : 'border-black/5'
+        }`}>
           <div className="flex flex-wrap gap-1">
             {item.tags && item.tags.length > 0 ? (
               item.tags.slice(0, 3).map(tag => (
-                <span key={tag} className={`px-2 py-0.5 rounded-full text-[9px] font-mono ${LANGUAGES.some(l => l.id === tag) ? 'bg-orange-600/20 text-orange-400' : 'bg-white/5 text-white/40'}`}>
+                <span key={tag} className={`px-2 py-0.5 rounded-full text-[9px] font-mono ${
+                  LANGUAGES.some(l => l.id === tag) 
+                    ? (darkMode ? 'bg-orange-600/20 text-orange-400' : 'bg-orange-100 text-orange-700') 
+                    : (darkMode ? 'bg-white/5 text-white/40' : 'bg-black/5 text-black/40')
+                }`}>
                   #{tag.toUpperCase()}
                 </span>
               ))
             ) : (
               ['Politics', 'Tech', 'World'].slice(0, Math.floor(Math.random() * 2) + 1).map(tag => (
-                <span key={tag} className="px-2 py-0.5 rounded-full bg-white/5 text-[9px] text-white/40 font-mono">
+                <span key={tag} className={`px-2 py-0.5 rounded-full font-mono text-[9px] ${
+                  darkMode ? 'bg-white/5 text-white/40' : 'bg-black/5 text-black/40'
+                }`}>
                   #{tag.toUpperCase()}
                 </span>
               ))
@@ -703,7 +794,9 @@ function NewsCard({ item, index, onOpenDetail }: { item: NewsItem; index: number
             href={item.link}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 text-white/30 hover:text-white transition-colors"
+            className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 transition-colors ${
+              darkMode ? 'text-white/30 hover:text-white' : 'text-black/30 hover:text-black'
+            }`}
           >
             Read Full <ChevronRight className="w-3 h-3" />
           </a>
@@ -718,10 +811,12 @@ function NewsCard({ item, index, onOpenDetail }: { item: NewsItem; index: number
           <img 
             src={item.imageUrl} 
             alt={item.imageAlt || item.title}
-            className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500 scale-105 group-hover:scale-100"
+            className={`w-full h-full object-cover transition-all duration-500 scale-105 group-hover:scale-100 ${
+              darkMode ? 'grayscale group-hover:grayscale-0' : ''
+            }`}
             referrerPolicy="no-referrer"
           />
-          <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors" />
+          <div className={`absolute inset-0 transition-colors ${darkMode ? 'bg-black/20 group-hover:bg-transparent' : 'bg-transparent'}`} />
         </div>
       )}
     </motion.article>
