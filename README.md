@@ -99,6 +99,11 @@ The application requires connection to an Elasticsearch instance. Define the fol
 
 ## 📜 Changelog
 
+### [0.6.1] - 2026-04-05
+- **Google News Enhancements**: Implemented HTML entity decoding and safe rendering for Google News descriptions.
+- **Link Behavior**: Configured all links within news descriptions to open in a new tab with `rel="noopener noreferrer"`.
+- **Featured Groups**: Added a "Featured Groups" section to the sidebar, including a "Most Popular - Google News" shortcut.
+
 ### [0.6.0] - 2026-04-05
 - **Dark/Light Mode**: Implemented a theme toggle with persistence using cookies.
 - **UI Refinement**: Updated all components (Header, Sidebar, NewsCard, Modals) to support both dark and light themes.

@@ -117,7 +117,19 @@ const DescriptionRenderer = ({ item, darkMode, isModal = false }: { item: NewsIt
   if (isGoogleNews) {
     try {
       const decoded = he.decode(item.description);
-      const sanitized = DOMPurify.sanitize(decoded);
+      
+      // Configure DOMPurify to add target="_blank" to all links
+      DOMPurify.addHook('afterSanitizeAttributes', function (node) {
+        if ('target' in node) {
+          node.setAttribute('target', '_blank');
+          node.setAttribute('rel', 'noopener noreferrer');
+        }
+      });
+
+      const sanitized = DOMPurify.sanitize(decoded, {
+        ADD_ATTR: ['target', 'rel'],
+      });
+
       return (
         <div 
           className={`${isModal ? 'text-sm md:text-base' : 'text-sm line-clamp-2'} leading-relaxed google-news-html [&_a]:text-orange-500 [&_a]:hover:underline [&_ul]:list-disc [&_ul]:ml-4`}
@@ -404,6 +416,36 @@ export default function App() {
       <main className="max-w-7xl mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Sidebar: Trending & Filters */}
         <aside className="lg:col-span-3 space-y-8">
+          <section>
+            <div className="flex items-center gap-2 mb-4 text-orange-500">
+              <TrendingUp className="w-5 h-5" />
+              <h2 className="font-bold uppercase tracking-widest text-xs">Featured Groups</h2>
+            </div>
+            <div className="space-y-2">
+              <button
+                onClick={() => {
+                  setSearchQuery('Google News');
+                  handleSearch({ preventDefault: () => {} } as any);
+                }}
+                className={`w-full text-left p-3 rounded-lg border transition-all group flex items-center justify-between ${
+                  darkMode 
+                    ? 'bg-orange-500/5 border-orange-500/20 hover:bg-orange-500/10' 
+                    : 'bg-orange-50 border-orange-200 hover:bg-orange-100 shadow-sm'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`p-1.5 rounded-md ${darkMode ? 'bg-orange-500/20' : 'bg-orange-100'}`}>
+                    <Newspaper className="w-3.5 h-3.5 text-orange-500" />
+                  </div>
+                  <span className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-black'}`}>
+                    Most Popular - Google News
+                  </span>
+                </div>
+                <ChevronRight className={`w-4 h-4 transition-transform group-hover:translate-x-1 ${darkMode ? 'text-white/20' : 'text-black/20'}`} />
+              </button>
+            </div>
+          </section>
+
           <section>
             <div className="flex items-center gap-2 mb-4 text-orange-500">
               <Languages className="w-5 h-5" />
