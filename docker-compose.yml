@@ -1,0 +1,16 @@
+services:
+  app:
+    build: .
+    container_name: newspulse-rss-elast-app
+    restart: always
+    env_file:
+      - .env
+    ports:
+      # Mapeia a porta 3004 do host para a 3000 do container
+      - "3004:3000"
+    volumes:
+      - ./.env:/app/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    platform: linux/arm64
