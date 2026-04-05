@@ -265,8 +265,8 @@ export default function App() {
       const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&langs=${encodeURIComponent(langsParam)}&from=0&size=50`);
       if (res.ok) {
         const data = await res.json();
-        setSearchResults(data);
-        if (data.length < 50) setHasMoreSearch(false);
+        setSearchResults(data.items);
+        setHasMoreSearch(data.hasMore);
       }
     } catch (err) {
       console.error('Search failed');
@@ -287,12 +287,12 @@ export default function App() {
       const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&langs=${encodeURIComponent(langsParam)}&from=${from}&size=50`);
       if (res.ok) {
         const data = await res.json();
-        if (data.length === 0) {
+        if (data.items.length === 0 && !data.hasMore) {
           setHasMoreSearch(false);
         } else {
-          setSearchResults(prev => [...prev, ...data]);
+          setSearchResults(prev => [...prev, ...data.items]);
           setSearchPage(nextPage);
-          if (data.length < 50) setHasMoreSearch(false);
+          setHasMoreSearch(data.hasMore);
         }
       }
     } catch (err) {
@@ -310,7 +310,7 @@ export default function App() {
       if (entries[0].isIntersecting && hasMoreSearch) {
         loadMoreSearch();
       }
-    });
+    }, { threshold: 0.1 });
     if (node) observer.current.observe(node);
   };
 
@@ -513,18 +513,20 @@ export default function App() {
                   <>
                     {searchResults.map((item, i) => {
                       const Card = NewsCard as any;
-                      const isLast = i === searchResults.length - 1;
                       return (
-                        <div key={`search-${item.link}-${i}`} ref={isLast ? lastElementRef : null}>
+                        <div key={`search-${item.link}-${i}`}>
                           <Card item={item} index={i} onOpenDetail={() => setSelectedImage(item)} />
                         </div>
                       );
                     })}
-                    {isLoadingMore && (
-                      <div className="flex justify-center py-8">
+                    
+                    {/* Sentinel for Infinite Scroll */}
+                    <div ref={lastElementRef} className="h-10 flex items-center justify-center">
+                      {isLoadingMore && (
                         <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
-                      </div>
-                    )}
+                      )}
+                    </div>
+
                     {!hasMoreSearch && searchResults.length > 0 && (
                       <div className="text-center py-8 text-white/20 text-xs font-mono uppercase tracking-widest">
                         End of historical records

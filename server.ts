@@ -500,7 +500,11 @@ app.get("/api/search", async (req, res) => {
       })
       .slice(0, 100);
     
-    res.json(uniqueHits);
+    res.json({
+      items: uniqueHits,
+      total: typeof result.hits.total === 'number' ? result.hits.total : result.hits.total.value,
+      hasMore: result.hits.hits.length === Number(size)
+    });
   } catch (error: any) {
     console.error("Search error:", error);
     res.status(500).json({ error: error.message });
