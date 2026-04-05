@@ -285,7 +285,7 @@ app.get("/api/stats", async (req, res) => {
 });
 
 app.get("/api/latest", async (req, res) => {
-  const { langs } = req.query;
+  const { langs, from = 0, size = 50 } = req.query;
   try {
     const query: any = {
       bool: {
@@ -316,8 +316,9 @@ app.get("/api/latest", async (req, res) => {
     const result = await esClient.search({
       index: "*",
       query,
+      from: Number(from),
+      size: Number(size),
       sort: [{ "@timestamp": { order: "desc" } }],
-      size: 50,
     } as any);
 
     const seenTitles = new Set();
@@ -344,7 +345,12 @@ app.get("/api/latest", async (req, res) => {
         return true;
       });
 
-    res.json(uniqueHits);
+    res.json({
+      items: uniqueHits,
+      total: typeof result.hits.total === 'number' ? result.hits.total : result.hits.total.value,
+      relation: typeof result.hits.total === 'number' ? 'eq' : result.hits.total.relation,
+      hasMore: result.hits.hits.length === Number(size)
+    });
   } catch (error: any) {
     console.error("[API] Latest fetch error:", error.message);
     res.status(500).json({ error: error.message });
@@ -503,6 +509,7 @@ app.get("/api/search", async (req, res) => {
     res.json({
       items: uniqueHits,
       total: typeof result.hits.total === 'number' ? result.hits.total : result.hits.total.value,
+      relation: typeof result.hits.total === 'number' ? 'eq' : result.hits.total.relation,
       hasMore: result.hits.hits.length === Number(size)
     });
   } catch (error: any) {

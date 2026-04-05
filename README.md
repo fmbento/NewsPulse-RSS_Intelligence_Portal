@@ -99,6 +99,17 @@ The application requires connection to an Elasticsearch instance. Define the fol
 
 ## 📜 Changelog
 
+### [0.7.1] - 2026-04-05
+- **Search Count Improvement**: Added a `+` prefix to the search results count when it exceeds the 10,000 record limit (e.g., `(+10,000)`), providing more accurate feedback on large result sets.
+
+### [0.7.0] - 2026-04-05
+- **Infinite Scroll Expansion**: Added infinite scroll support to the "News River" (latest news) tab, allowing seamless browsing of recent history.
+- **Search UI Enhancements**:
+  - Added a clickable search button to the search input for better mouse accessibility.
+  - The "Search Results" tab is now hidden until a search is performed.
+  - Search results count is now displayed in the tab label with localized formatting (thousands/millions separators).
+- **Backend Pagination**: Updated `/api/latest` to support paginated requests.
+
 ### [0.6.1] - 2026-04-05
 - **Google News Enhancements**: Implemented HTML entity decoding and safe rendering for all feeds starting with "Google News:" or ending with "Google News".
 - **Link Behavior**: Configured all links within news descriptions to open in a new tab with `rel="noopener noreferrer"`.

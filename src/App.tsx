@@ -161,11 +161,16 @@ export default function App() {
   const [trending, setTrending] = useState<TrendingTopic[]>([]);
   const [searchResults, setSearchResults] = useState<NewsItem[]>([]);
   const [totalRecords, setTotalRecords] = useState<number | null>(null);
+  const [searchCount, setSearchCount] = useState<number | null>(null);
+  const [searchRelation, setSearchRelation] = useState<'eq' | 'gte'>('eq');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchPage, setSearchPage] = useState(0);
   const [hasMoreSearch, setHasMoreSearch] = useState(true);
+  const [riverPage, setRiverPage] = useState(0);
+  const [hasMoreRiver, setHasMoreRiver] = useState(true);
+  const [hasSearched, setHasSearched] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'river' | 'search'>('river');
@@ -252,16 +257,19 @@ export default function App() {
       // Fetch latest and trending in parallel with individual error handling
       const langsParam = selectedLangs.join(',');
       const [latestRes, trendingRes] = await Promise.all([
-        fetchWithTimeout(`/api/latest?langs=${encodeURIComponent(langsParam)}`, { timeout: 30000 }).catch(e => ({ ok: false, statusText: e.message })),
+        fetchWithTimeout(`/api/latest?langs=${encodeURIComponent(langsParam)}&from=0&size=50`, { timeout: 30000 }).catch(e => ({ ok: false, statusText: e.message })),
         fetchWithTimeout('/api/trending', { timeout: 30000 }).catch(e => ({ ok: false, statusText: e.message }))
       ]);
 
       if (latestRes.ok) {
         const latestData = await (latestRes as Response).json();
-        setLatestNews(latestData);
+        setLatestNews(latestData.items);
+        setHasMoreRiver(latestData.hasMore);
+        setRiverPage(0);
       } else {
         console.error('Latest news failed');
         setLatestNews(MOCK_NEWS);
+        setHasMoreRiver(false);
       }
 
       if (trendingRes.ok) {
@@ -290,13 +298,43 @@ export default function App() {
 
   const fetchLatest = async () => {
     try {
-      const res = await fetchWithTimeout('/api/latest', { timeout: 10000 });
+      const langsParam = selectedLangs.join(',');
+      const res = await fetchWithTimeout(`/api/latest?langs=${encodeURIComponent(langsParam)}&from=0&size=50`, { timeout: 10000 });
       if (res.ok) {
         const data = await res.json();
-        setLatestNews(data);
+        setLatestNews(data.items);
+        setHasMoreRiver(data.hasMore);
+        setRiverPage(0);
       }
     } catch (err) {
       console.error('Auto-refresh failed or timed out');
+    }
+  };
+
+  const loadMoreRiver = async () => {
+    if (isLoadingMore || !hasMoreRiver) return;
+    
+    setIsLoadingMore(true);
+    const nextPage = riverPage + 1;
+    const from = nextPage * 50;
+    
+    try {
+      const langsParam = selectedLangs.join(',');
+      const res = await fetch(`/api/latest?langs=${encodeURIComponent(langsParam)}&from=${from}&size=50`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.items.length === 0 && !data.hasMore) {
+          setHasMoreRiver(false);
+        } else {
+          setLatestNews(prev => [...prev, ...data.items]);
+          setRiverPage(nextPage);
+          setHasMoreRiver(data.hasMore);
+        }
+      }
+    } catch (err) {
+      console.error('Load more river failed');
+    } finally {
+      setIsLoadingMore(false);
     }
   };
 
@@ -305,6 +343,7 @@ export default function App() {
     if (!searchQuery.trim()) return;
 
     setIsSearching(true);
+    setHasSearched(true);
     setActiveTab('search');
     setSearchPage(0);
     setHasMoreSearch(true);
@@ -314,6 +353,8 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setSearchResults(data.items);
+        setSearchCount(data.total);
+        setSearchRelation(data.relation || 'eq');
         setHasMoreSearch(data.hasMore);
       }
     } catch (err) {
@@ -340,6 +381,8 @@ export default function App() {
         } else {
           setSearchResults(prev => [...prev, ...data.items]);
           setSearchPage(nextPage);
+          setSearchCount(data.total);
+          setSearchRelation(data.relation || 'eq');
           setHasMoreSearch(data.hasMore);
         }
       }
@@ -355,8 +398,12 @@ export default function App() {
     if (isSearching || isLoadingMore) return;
     if (observer.current) observer.current.disconnect();
     observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMoreSearch) {
-        loadMoreSearch();
+      if (entries[0].isIntersecting) {
+        if (activeTab === 'search' && hasMoreSearch) {
+          loadMoreSearch();
+        } else if (activeTab === 'river' && hasMoreRiver) {
+          loadMoreRiver();
+        }
       }
     }, { threshold: 0.1 });
     if (node) observer.current.observe(node);
@@ -376,19 +423,31 @@ export default function App() {
             <h1 className={`text-xl font-bold tracking-tighter uppercase ${darkMode ? 'text-white' : 'text-black'}`}>NewsPulse</h1>
           </div>
 
-          <form onSubmit={handleSearch} className="flex-1 max-w-md mx-8 relative">
-            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${darkMode ? 'text-white/40' : 'text-black/40'}`} />
+          <form onSubmit={handleSearch} className="flex-1 max-w-md mx-8 relative group">
+            <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${
+              darkMode ? 'text-white/40 group-focus-within:text-orange-500' : 'text-black/40 group-focus-within:text-orange-500'
+            }`} />
             <input
               type="text"
               placeholder="Search historical news..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className={`w-full rounded-full py-2 pl-10 pr-4 focus:outline-none focus:border-orange-500/50 transition-all text-sm ${
+              className={`w-full rounded-full py-2 pl-10 pr-12 focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition-all text-sm ${
                 darkMode 
-                  ? 'bg-white/5 border-white/10 text-white placeholder:text-white/20' 
-                  : 'bg-black/5 border-black/10 text-black placeholder:text-black/30'
+                  ? 'bg-white/5 border border-white/10 text-white placeholder:text-white/20' 
+                  : 'bg-black/5 border border-black/10 text-black placeholder:text-black/30'
               }`}
             />
+            <button
+              type="submit"
+              className={`absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 rounded-full transition-all ${
+                darkMode 
+                  ? 'bg-orange-600 text-black hover:bg-orange-500' 
+                  : 'bg-orange-600 text-white hover:bg-orange-700'
+              }`}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </form>
 
           <div className={`flex items-center gap-4 text-xs font-mono ${darkMode ? 'text-white/40' : 'text-black/40'}`}>
@@ -564,19 +623,21 @@ export default function App() {
                 <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-600" />
               )}
             </button>
-            <button
-              onClick={() => setActiveTab('search')}
-              className={`pb-4 text-sm font-bold uppercase tracking-widest transition-colors relative ${
-                activeTab === 'search' 
-                  ? (darkMode ? 'text-white' : 'text-black') 
-                  : (darkMode ? 'text-white/40 hover:text-white/60' : 'text-black/40 hover:text-black/60')
-              }`}
-            >
-              Search Results
-              {activeTab === 'search' && (
-                <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-600" />
-              )}
-            </button>
+            {hasSearched && (
+              <button
+                onClick={() => setActiveTab('search')}
+                className={`pb-4 text-sm font-bold uppercase tracking-widest transition-colors relative ${
+                  activeTab === 'search' 
+                    ? (darkMode ? 'text-white' : 'text-black') 
+                    : (darkMode ? 'text-white/40 hover:text-white/60' : 'text-black/40 hover:text-black/60')
+                }`}
+              >
+                Search Results {searchCount !== null && `(${searchRelation === 'gte' ? '+' : ''}${searchCount.toLocaleString()})`}
+                {activeTab === 'search' && (
+                  <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-600" />
+                )}
+              </button>
+            )}
           </div>
 
           {error && (
@@ -599,7 +660,7 @@ export default function App() {
 
           <div className="space-y-4">
             {activeTab === 'river' ? (
-              <div ref={riverRef} className="space-y-4">
+              <div className="space-y-4">
                 <AnimatePresence mode="popLayout">
                     {latestNews.map((item, i) => (
                       <div key={`${item.link}-${i}`}>
@@ -612,15 +673,24 @@ export default function App() {
                       </div>
                     ))}
                 </AnimatePresence>
+                
+                {/* Sentinel for Infinite Scroll */}
+                <div ref={lastElementRef} className="h-10 flex items-center justify-center">
+                  {(isLoading || isLoadingMore) && (
+                    <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+                  )}
+                </div>
+
                 {latestNews.length === 0 && !isLoading && (
-                  <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-2xl">
-                    <Languages className="w-12 h-12 text-white/10 mx-auto mb-4" />
-                    <p className="text-white/40 text-sm">No news matching your language filters</p>
+                  <div className={`text-center py-24 border-2 border-dashed rounded-2xl ${darkMode ? 'border-white/5' : 'border-black/5'}`}>
+                    <Languages className={`w-12 h-12 mx-auto mb-4 ${darkMode ? 'text-white/10' : 'text-black/10'}`} />
+                    <p className={`${darkMode ? 'text-white/40' : 'text-black/40'} text-sm`}>No news matching your language filters</p>
                   </div>
                 )}
-                {isLoading && (
-                  <div className="flex justify-center py-12">
-                    <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
+
+                {!hasMoreRiver && latestNews.length > 0 && (
+                  <div className={`text-center py-8 text-xs font-mono uppercase tracking-widest ${darkMode ? 'text-white/20' : 'text-black/20'}`}>
+                    End of news river
                   </div>
                 )}
               </div>
@@ -629,7 +699,7 @@ export default function App() {
                 {isSearching ? (
                   <div className="flex flex-col items-center justify-center py-24 gap-4">
                     <Loader2 className="w-10 h-10 animate-spin text-orange-500" />
-                    <p className="text-sm font-mono text-white/40">Querying historical index...</p>
+                    <p className={`text-sm font-mono ${darkMode ? 'text-white/40' : 'text-black/40'}`}>Querying historical index...</p>
                   </div>
                 ) : searchResults.length > 0 ? (
                   <>
@@ -652,15 +722,15 @@ export default function App() {
                     </div>
 
                     {!hasMoreSearch && searchResults.length > 0 && (
-                      <div className="text-center py-8 text-white/20 text-xs font-mono uppercase tracking-widest">
+                      <div className={`text-center py-8 text-xs font-mono uppercase tracking-widest ${darkMode ? 'text-white/20' : 'text-black/20'}`}>
                         End of historical records
                       </div>
                     )}
                   </>
                 ) : (
-                  <div className="text-center py-24 border-2 border-dashed border-white/5 rounded-2xl">
-                    <Search className="w-12 h-12 text-white/10 mx-auto mb-4" />
-                    <p className="text-white/40 text-sm">
+                  <div className={`text-center py-24 border-2 border-dashed rounded-2xl ${darkMode ? 'border-white/5' : 'border-black/5'}`}>
+                    <Search className={`w-12 h-12 mx-auto mb-4 ${darkMode ? 'text-white/10' : 'text-black/10'}`} />
+                    <p className={`${darkMode ? 'text-white/40' : 'text-black/40'} text-sm`}>
                       {searchResults.length > 0 ? 'No results matching your language filters' : 'Enter a query to search millions of records'}
                     </p>
                   </div>
