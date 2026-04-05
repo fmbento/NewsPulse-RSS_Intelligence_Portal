@@ -112,7 +112,7 @@ interface TrendingTopic {
 }
 
 const DescriptionRenderer = ({ item, darkMode, isModal = false }: { item: NewsItem; darkMode: boolean; isModal?: boolean }) => {
-  const isGoogleNews = item.source?.startsWith('Google News:') || item.source === 'Most Popular - Google News';
+  const isGoogleNews = item.source?.startsWith('Google News:') || item.source?.endsWith('Google News');
   
   if (isGoogleNews) {
     try {
