@@ -99,6 +99,20 @@ The application requires connection to an Elasticsearch instance. Define the fol
 
 ## 📜 Changelog
 
+### [0.8.1] - 2026-04-06
+- **Collapsible Sidebar Sections**:
+  - Added collapse/expand functionality to "Trending Topics" and "Language Filter" sections.
+  - "Trending Topics" is collapsed by default; "Language Filter" is open by default.
+  - Collapse status is persisted in local storage.
+  - Added smooth animations for expanding/collapsing.
+
+### [0.8.0] - 2026-04-06
+- **Favorites Feature**:
+  - Added a heart icon to each news card to save articles.
+  - Favorites are persisted in the browser's local storage.
+  - New "Favorites" tab added to the main content area to browse saved articles.
+  - Real-time count of favorites displayed in the tab label.
+
 ### [0.7.1] - 2026-04-05
 - **Search Count Improvement**: Added a `+` prefix to the search results count when it exceeds the 10,000 record limit (e.g., `(+10,000)`), providing more accurate feedback on large result sets.
 

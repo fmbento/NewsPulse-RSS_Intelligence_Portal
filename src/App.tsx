@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, TrendingUp, Newspaper, Clock, ExternalLink, AlertCircle, Loader2, ChevronRight, X, Languages, Check, Sun, Moon } from 'lucide-react';
+import { Search, TrendingUp, Newspaper, Clock, ExternalLink, AlertCircle, Loader2, ChevronRight, ChevronDown, ChevronUp, X, Languages, Check, Sun, Moon, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatDistanceToNow } from 'date-fns';
 import Cookies from 'js-cookie';
@@ -173,8 +173,43 @@ export default function App() {
   const [hasSearched, setHasSearched] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'river' | 'search'>('river');
+  const [activeTab, setActiveTab] = useState<'river' | 'search' | 'favorites'>('river');
   const [selectedImage, setSelectedImage] = useState<NewsItem | null>(null);
+  const [isLangFilterOpen, setIsLangFilterOpen] = useState<boolean>(() => {
+    const saved = localStorage.getItem('newspulse_lang_filter_open');
+    return saved !== null ? saved === 'true' : true;
+  });
+  const [isTrendingOpen, setIsTrendingOpen] = useState<boolean>(() => {
+    const saved = localStorage.getItem('newspulse_trending_open');
+    return saved !== null ? saved === 'true' : false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('newspulse_lang_filter_open', String(isLangFilterOpen));
+  }, [isLangFilterOpen]);
+
+  useEffect(() => {
+    localStorage.setItem('newspulse_trending_open', String(isTrendingOpen));
+  }, [isTrendingOpen]);
+  const [favorites, setFavorites] = useState<NewsItem[]>(() => {
+    const saved = localStorage.getItem('newspulse_favorites');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('newspulse_favorites', JSON.stringify(favorites));
+  }, [favorites]);
+
+  const toggleFavorite = (item: NewsItem) => {
+    setFavorites(prev => {
+      const isFav = prev.some(f => f.link === item.link);
+      if (isFav) {
+        return prev.filter(f => f.link !== item.link);
+      } else {
+        return [...prev, item];
+      }
+    });
+  };
 
   const riverRef = useRef<HTMLDivElement>(null);
 
@@ -420,10 +455,10 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-orange-600 rounded flex items-center justify-center font-bold text-black shadow-lg shadow-orange-600/20">NP</div>
-            <h1 className={`text-xl font-bold tracking-tighter uppercase ${darkMode ? 'text-white' : 'text-black'}`}>NewsPulse</h1>
+            <h1 className={`text-xl font-bold tracking-tighter uppercase hidden sm:block ${darkMode ? 'text-white' : 'text-black'}`}>NewsPulse</h1>
           </div>
 
-          <form onSubmit={handleSearch} className="flex-1 max-w-md mx-8 relative group">
+          <form onSubmit={handleSearch} className="flex-1 max-w-md mx-2 sm:mx-8 relative group">
             <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${
               darkMode ? 'text-white/40 group-focus-within:text-orange-500' : 'text-black/40 group-focus-within:text-orange-500'
             }`} />
@@ -506,85 +541,121 @@ export default function App() {
           </section>
 
           <section>
-            <div className="flex items-center gap-2 mb-4 text-orange-500">
-              <Languages className="w-5 h-5" />
-              <h2 className="font-bold uppercase tracking-widest text-xs">Language Filter</h2>
-            </div>
-            <div className={`space-y-1 p-3 rounded-xl border transition-colors duration-300 ${
-              darkMode ? 'bg-white/5 border-white/10' : 'bg-white border-black/10 shadow-sm'
-            }`}>
-              {LANGUAGES.map((lang) => (
-                <label
-                  key={lang.id}
-                  className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors group ${
-                    darkMode ? 'hover:bg-white/5' : 'hover:bg-black/5'
-                  }`}
+            <button 
+              onClick={() => setIsLangFilterOpen(!isLangFilterOpen)}
+              className="w-full flex items-center justify-between mb-4 text-orange-500 group"
+            >
+              <div className="flex items-center gap-2">
+                <Languages className="w-5 h-5" />
+                <h2 className="font-bold uppercase tracking-widest text-xs">Language Filter</h2>
+              </div>
+              {isLangFilterOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+            <AnimatePresence>
+              {isLangFilterOpen && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  className="overflow-hidden"
                 >
-                  <div className="relative flex items-center justify-center">
-                    <input
-                      type="checkbox"
-                      checked={selectedLangs.includes(lang.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedLangs([...selectedLangs, lang.id]);
-                        } else {
-                          setSelectedLangs(selectedLangs.filter(id => id !== lang.id));
-                        }
-                      }}
-                      className={`peer appearance-none w-4 h-4 rounded border transition-all ${
-                        darkMode ? 'border-white/20 checked:bg-orange-600 checked:border-orange-600' : 'border-black/20 checked:bg-orange-600 checked:border-orange-600'
-                      }`}
-                    />
-                    <Check className={`absolute w-3 h-3 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none ${
-                      darkMode ? 'text-black' : 'text-white'
-                    }`} />
+                  <div className={`space-y-1 p-3 rounded-xl border transition-colors duration-300 ${
+                    darkMode ? 'bg-white/5 border-white/10' : 'bg-white border-black/10 shadow-sm'
+                  }`}>
+                    {LANGUAGES.map((lang) => (
+                      <label
+                        key={lang.id}
+                        className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors group ${
+                          darkMode ? 'hover:bg-white/5' : 'hover:bg-black/5'
+                        }`}
+                      >
+                        <div className="relative flex items-center justify-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedLangs.includes(lang.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedLangs([...selectedLangs, lang.id]);
+                              } else {
+                                setSelectedLangs(selectedLangs.filter(id => id !== lang.id));
+                              }
+                            }}
+                            className={`peer appearance-none w-4 h-4 rounded border transition-all ${
+                              darkMode ? 'border-white/20 checked:bg-orange-600 checked:border-orange-600' : 'border-black/20 checked:bg-orange-600 checked:border-orange-600'
+                            }`}
+                          />
+                          <Check className={`absolute w-3 h-3 opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none ${
+                            darkMode ? 'text-black' : 'text-white'
+                          }`} />
+                        </div>
+                        <span className="text-sm flex items-center gap-2">
+                          <span className="text-base grayscale group-hover:grayscale-0 transition-all">{lang.flags}</span>
+                          <span className={`${selectedLangs.includes(lang.id) ? (darkMode ? 'text-white' : 'text-black') : (darkMode ? 'text-white/40' : 'text-black/40')} transition-colors`}>
+                            {lang.label}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
                   </div>
-                  <span className="text-sm flex items-center gap-2">
-                    <span className="text-base grayscale group-hover:grayscale-0 transition-all">{lang.flags}</span>
-                    <span className={`${selectedLangs.includes(lang.id) ? (darkMode ? 'text-white' : 'text-black') : (darkMode ? 'text-white/40' : 'text-black/40')} transition-colors`}>
-                      {lang.label}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </section>
 
           <section>
-            <div className="flex items-center gap-2 mb-4 text-orange-500">
-              <TrendingUp className="w-5 h-5" />
-              <h2 className="font-bold uppercase tracking-widest text-xs">Trending Topics</h2>
-            </div>
-            <div className="space-y-2">
-              {trending.length > 0 ? (
-                trending.map((topic, i) => (
-                  <button
-                    key={topic.key}
-                    onClick={() => {
-                      setSearchQuery(topic.key);
-                      handleSearch({ preventDefault: () => {} } as any);
-                    }}
-                    className={`w-full text-left p-3 rounded-lg border transition-all group flex items-center justify-between ${
-                      darkMode 
-                        ? 'bg-white/5 border-transparent hover:border-white/10 hover:bg-white/10' 
-                        : 'bg-white border-black/5 hover:border-black/10 hover:bg-gray-50 shadow-sm'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className={`font-mono text-xs ${darkMode ? 'text-white/20' : 'text-black/20'}`}>0{i + 1}</span>
-                      <span className={`text-sm font-medium transition-colors truncate max-w-[140px] ${
-                        darkMode ? 'text-white group-hover:text-orange-400' : 'text-black group-hover:text-orange-600'
-                      }`}>
-                        {topic.key}
-                      </span>
-                    </div>
-                    <span className={`text-[10px] font-mono ${darkMode ? 'text-white/30' : 'text-black/30'}`}>{topic.doc_count}</span>
-                  </button>
-                ))
-              ) : (
-                <div className={`text-xs italic ${darkMode ? 'text-white/30' : 'text-black/30'}`}>No trends detected</div>
+            <button 
+              onClick={() => setIsTrendingOpen(!isTrendingOpen)}
+              className="w-full flex items-center justify-between mb-4 text-orange-500 group"
+            >
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5" />
+                <h2 className="font-bold uppercase tracking-widest text-xs">Trending Topics</h2>
+              </div>
+              {isTrendingOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </button>
+            <AnimatePresence>
+              {isTrendingOpen && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.3, ease: 'easeInOut' }}
+                  className="overflow-hidden"
+                >
+                  <div className="space-y-2">
+                    {trending.length > 0 ? (
+                      trending.map((topic, i) => (
+                        <button
+                          key={topic.key}
+                          onClick={() => {
+                            setSearchQuery(topic.key);
+                            handleSearch({ preventDefault: () => {} } as any);
+                          }}
+                          className={`w-full text-left p-3 rounded-lg border transition-all group flex items-center justify-between ${
+                            darkMode 
+                              ? 'bg-white/5 border-transparent hover:border-white/10 hover:bg-white/10' 
+                              : 'bg-white border-black/5 hover:border-black/10 hover:bg-gray-50 shadow-sm'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className={`font-mono text-xs ${darkMode ? 'text-white/20' : 'text-black/20'}`}>0{i + 1}</span>
+                            <span className={`text-sm font-medium transition-colors truncate max-w-[140px] ${
+                              darkMode ? 'text-white group-hover:text-orange-400' : 'text-black group-hover:text-orange-600'
+                            }`}>
+                              {topic.key}
+                            </span>
+                          </div>
+                          <span className={`text-[10px] font-mono ${darkMode ? 'text-white/30' : 'text-black/30'}`}>{topic.doc_count}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className={`text-xs italic ${darkMode ? 'text-white/30' : 'text-black/30'}`}>No trends detected</div>
+                    )}
+                  </div>
+                </motion.div>
               )}
-            </div>
+            </AnimatePresence>
           </section>
 
           <section className={`p-4 rounded-xl border transition-colors duration-300 ${
@@ -638,6 +709,19 @@ export default function App() {
                 )}
               </button>
             )}
+            <button
+              onClick={() => setActiveTab('favorites')}
+              className={`pb-4 text-sm font-bold uppercase tracking-widest transition-colors relative ${
+                activeTab === 'favorites' 
+                  ? (darkMode ? 'text-white' : 'text-black') 
+                  : (darkMode ? 'text-white/40 hover:text-white/60' : 'text-black/40 hover:text-black/60')
+              }`}
+            >
+              Favorites {favorites.length > 0 && `(${favorites.length})`}
+              {activeTab === 'favorites' && (
+                <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-600" />
+              )}
+            </button>
           </div>
 
           {error && (
@@ -669,6 +753,8 @@ export default function App() {
                           index={i} 
                           onOpenDetail={() => setSelectedImage(item)} 
                           darkMode={darkMode}
+                          isFavorite={favorites.some(f => f.link === item.link)}
+                          onToggleFavorite={toggleFavorite}
                         />
                       </div>
                     ))}
@@ -694,7 +780,7 @@ export default function App() {
                   </div>
                 )}
               </div>
-            ) : (
+            ) : activeTab === 'search' ? (
               <div className="space-y-4">
                 {isSearching ? (
                   <div className="flex flex-col items-center justify-center py-24 gap-4">
@@ -710,6 +796,8 @@ export default function App() {
                           index={i} 
                           onOpenDetail={() => setSelectedImage(item)} 
                           darkMode={darkMode}
+                          isFavorite={favorites.some(f => f.link === item.link)}
+                          onToggleFavorite={toggleFavorite}
                         />
                       </div>
                     ))}
@@ -732,6 +820,32 @@ export default function App() {
                     <Search className={`w-12 h-12 mx-auto mb-4 ${darkMode ? 'text-white/10' : 'text-black/10'}`} />
                     <p className={`${darkMode ? 'text-white/40' : 'text-black/40'} text-sm`}>
                       {searchResults.length > 0 ? 'No results matching your language filters' : 'Enter a query to search millions of records'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <AnimatePresence mode="popLayout">
+                    {favorites.map((item, i) => (
+                      <div key={`fav-${item.link}-${i}`}>
+                        <NewsCard 
+                          item={item} 
+                          index={i} 
+                          onOpenDetail={() => setSelectedImage(item)} 
+                          darkMode={darkMode}
+                          isFavorite={true}
+                          onToggleFavorite={toggleFavorite}
+                        />
+                      </div>
+                    ))}
+                </AnimatePresence>
+                
+                {favorites.length === 0 && (
+                  <div className={`text-center py-24 border-2 border-dashed rounded-2xl ${darkMode ? 'border-white/5' : 'border-black/5'}`}>
+                    <Heart className={`w-12 h-12 mx-auto mb-4 ${darkMode ? 'text-white/10' : 'text-black/10'}`} />
+                    <p className={`${darkMode ? 'text-white/40' : 'text-black/40'} text-sm`}>
+                      You haven't added any favorites yet. Click the heart icon on any news card to save it here.
                     </p>
                   </div>
                 )}
@@ -849,7 +963,7 @@ export default function App() {
   );
 }
 
-function NewsCard({ item, index, onOpenDetail, darkMode }: { item: NewsItem; index: number; onOpenDetail: () => void; darkMode: boolean }) {
+function NewsCard({ item, index, onOpenDetail, darkMode, isFavorite, onToggleFavorite }: { item: NewsItem; index: number; onOpenDetail: () => void; darkMode: boolean; isFavorite: boolean; onToggleFavorite: (item: NewsItem) => void }) {
   const safeDate = (dateStr: string) => {
     try {
       const d = new Date(dateStr);
@@ -880,16 +994,31 @@ function NewsCard({ item, index, onOpenDetail, darkMode }: { item: NewsItem; ind
             <span className={darkMode ? 'text-white/20' : 'text-black/20'}>•</span>
             <span className={darkMode ? 'text-white/40' : 'text-black/40'}>{item.source || 'Global Feed'}</span>
           </div>
-          <a
-            href={item.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`opacity-0 group-hover:opacity-100 transition-all p-1.5 rounded-md ${
-              darkMode ? 'bg-white/10 text-white hover:bg-orange-600 hover:text-black' : 'bg-black/5 text-black hover:bg-orange-600 hover:text-white'
-            }`}
-          >
-            <ExternalLink className="w-3 h-3" />
-          </a>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite(item);
+              }}
+              className={`p-1.5 rounded-md transition-all ${
+                isFavorite 
+                  ? 'text-red-500 bg-red-500/10' 
+                  : (darkMode ? 'text-white/20 hover:text-red-400 hover:bg-white/5' : 'text-black/20 hover:text-red-500 hover:bg-black/5')
+              }`}
+            >
+              <Heart className={`w-3 h-3 ${isFavorite ? 'fill-current' : ''}`} />
+            </button>
+            <a
+              href={item.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`opacity-0 group-hover:opacity-100 transition-all p-1.5 rounded-md ${
+                darkMode ? 'bg-white/10 text-white hover:bg-orange-600 hover:text-black' : 'bg-black/5 text-black hover:bg-orange-600 hover:text-white'
+              }`}
+            >
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
         </div>
         
         <button 
