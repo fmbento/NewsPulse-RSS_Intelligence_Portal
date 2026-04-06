@@ -112,9 +112,9 @@ interface TrendingTopic {
 }
 
 const DescriptionRenderer = ({ item, darkMode, isModal = false }: { item: NewsItem; darkMode: boolean; isModal?: boolean }) => {
-  const isGoogleNews = item.source?.startsWith('Google News:') || item.source?.endsWith('Google News');
+  const isGoogleFeed = item.source?.includes('Google');
   
-  if (isGoogleNews) {
+  if (isGoogleFeed) {
     try {
       const decoded = he.decode(item.description);
       

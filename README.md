@@ -99,6 +99,9 @@ The application requires connection to an Elasticsearch instance. Define the fol
 
 ## 📜 Changelog
 
+### [0.8.2] - 2026-04-06
+- **Google Feeds Enhancement**: Expanded HTML decoding and rendering logic to all news feeds containing "Google" in their source name (including "Google Notícias" and others).
+
 ### [0.8.1] - 2026-04-06
 - **Collapsible Sidebar Sections**:
   - Added collapse/expand functionality to "Trending Topics" and "Language Filter" sections.
