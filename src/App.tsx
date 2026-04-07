@@ -329,10 +329,12 @@ export default function App() {
         const history: Record<string, { lastSearchTime: number; lastRecordTime: number }> = {};
         snapshot.docs.forEach(doc => {
           const data = doc.data();
-          history[data.query] = {
-            lastSearchTime: data.lastSearchTime.toMillis(),
-            lastRecordTime: data.lastRecordTime.toMillis()
-          };
+          if (data.query) {
+            history[data.query] = {
+              lastSearchTime: data.lastSearchTime?.toMillis() || Date.now(),
+              lastRecordTime: data.lastRecordTime?.toMillis() || Date.now()
+            };
+          }
         });
         setSearchHistory(history);
         localStorage.setItem('newspulse_search_history', JSON.stringify(history));
