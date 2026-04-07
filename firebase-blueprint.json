@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Stores user preferences and settings.",
+      "type": "object",
+      "properties": {
+        "selectedLangs": {
+          "type": "array",
+          "description": "List of selected language IDs."
+        },
+        "darkMode": {
+          "type": "boolean",
+          "description": "User's dark mode preference."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last time the profile was updated."
+        }
+      },
+      "required": ["selectedLangs", "darkMode"]
+    },
+    "ReadLaterItem": {
+      "title": "ReadLaterItem",
+      "description": "A news article saved for later reading.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "link": { "type": "string" },
+        "pubDate": { "type": "string" },
+        "source": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "imageAlt": { "type": "string" },
+        "tags": { "type": "array" },
+        "savedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "link", "pubDate"]
+    },
+    "SearchHistory": {
+      "title": "SearchHistory",
+      "description": "Tracks user search queries and timestamps.",
+      "type": "object",
+      "properties": {
+        "query": { "type": "string" },
+        "lastSearchTime": { "type": "string", "format": "date-time" },
+        "lastRecordTime": { "type": "string", "format": "date-time", "description": "Timestamp of the most recent record retrieved in the last search." }
+      },
+      "required": ["query", "lastSearchTime", "lastRecordTime"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile document."
+    },
+    "/users/{userId}/readLater/{itemId}": {
+      "schema": "ReadLaterItem",
+      "description": "Collection of articles saved for later."
+    },
+    "/users/{userId}/searchHistory/{queryId}": {
+      "schema": "SearchHistory",
+      "description": "Collection of search queries and their last run timestamps."
+    }
+  }
+}

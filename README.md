@@ -99,6 +99,27 @@ The application requires connection to an Elasticsearch instance. Define the fol
 
 ## 📜 Changelog
 
+### [0.9.1] - 2026-04-07
+- **Enhanced Data Persistence**:
+  - Added a synchronization prompt when logging in with local "Read Later" items.
+  - Implemented a browser exit warning for users with unsaved "Read Later" articles who are not logged in.
+- **Saved Searches Sidebar**:
+  - Added a "Saved Searches" section to the sidebar for authenticated users.
+  - Displays the timestamp of the most recent record retrieved for each saved search.
+  - Added the ability to delete saved searches with a confirmation modal.
+
+### [0.9.0] - 2026-04-07
+- **Firebase Integration**:
+  - Added Google Login support.
+  - User preferences (dark mode, language filters) are now synced to the cloud.
+  - "Read Later" articles (formerly Favorites) are now synchronized across devices.
+- **Read Later Feature**:
+  - Renamed "Favorites" to "Read Later" with a clearer call to action.
+  - Added Bookmark icon and improved empty state messaging.
+- **Search Intelligence**:
+  - Implemented search history tracking.
+  - Added a "New" ribbon to search results that are more recent than the previous search for that query.
+
 ### [0.8.2] - 2026-04-06
 - **Google Feeds Enhancement**: Expanded HTML decoding and rendering logic to all news feeds containing "Google" in their source name (including "Google Notícias" and others).
 

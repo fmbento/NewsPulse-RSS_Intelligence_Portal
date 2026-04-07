@@ -1,10 +1,34 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, TrendingUp, Newspaper, Clock, ExternalLink, AlertCircle, Loader2, ChevronRight, ChevronDown, ChevronUp, X, Languages, Check, Sun, Moon, Heart } from 'lucide-react';
+import { Search, TrendingUp, Newspaper, Clock, ExternalLink, AlertCircle, Loader2, ChevronRight, ChevronDown, ChevronUp, X, Languages, Check, Sun, Moon, Heart, LogIn, LogOut, User as UserIcon, Bookmark, Trash2, History } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatDistanceToNow } from 'date-fns';
 import Cookies from 'js-cookie';
 import he from 'he';
 import DOMPurify from 'dompurify';
+import { 
+  auth, 
+  db, 
+  googleProvider, 
+  signInWithPopup, 
+  signOut, 
+  onAuthStateChanged, 
+  doc, 
+  collection, 
+  setDoc, 
+  getDoc, 
+  updateDoc, 
+  deleteDoc, 
+  onSnapshot, 
+  query, 
+  where, 
+  orderBy, 
+  limit, 
+  serverTimestamp, 
+  Timestamp,
+  User,
+  handleFirestoreError,
+  OperationType
+} from './firebase';
 
 interface NewsItem {
   title: string;
@@ -149,6 +173,8 @@ const DescriptionRenderer = ({ item, darkMode, isModal = false }: { item: NewsIt
 };
 
 export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
   const [selectedLangs, setSelectedLangs] = useState<string[]>(() => {
     const saved = Cookies.get(COOKIE_NAME);
     return saved ? JSON.parse(saved) : LANGUAGES.map(l => l.id);
@@ -173,7 +199,7 @@ export default function App() {
   const [hasSearched, setHasSearched] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'river' | 'search' | 'favorites'>('river');
+  const [activeTab, setActiveTab] = useState<'river' | 'search' | 'readLater'>('river');
   const [selectedImage, setSelectedImage] = useState<NewsItem | null>(null);
   const [isLangFilterOpen, setIsLangFilterOpen] = useState<boolean>(() => {
     const saved = localStorage.getItem('newspulse_lang_filter_open');
@@ -183,6 +209,25 @@ export default function App() {
     const saved = localStorage.getItem('newspulse_trending_open');
     return saved !== null ? saved === 'true' : false;
   });
+  const [isSearchHistoryOpen, setIsSearchHistoryOpen] = useState<boolean>(() => {
+    const saved = localStorage.getItem('newspulse_search_history_open');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const [showSyncModal, setShowSyncModal] = useState(false);
+  const [pendingLocalReadLater, setPendingLocalReadLater] = useState<NewsItem[]>([]);
+  const [searchToDelete, setSearchToDelete] = useState<string | null>(null);
+  const userRef = useRef<User | null>(null);
+
+  const [readLater, setReadLater] = useState<NewsItem[]>(() => {
+    const saved = localStorage.getItem('newspulse_readLater');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [searchHistory, setSearchHistory] = useState<Record<string, { lastSearchTime: number; lastRecordTime: number }>>(() => {
+    const saved = localStorage.getItem('newspulse_search_history');
+    return saved ? JSON.parse(saved) : {};
+  });
 
   useEffect(() => {
     localStorage.setItem('newspulse_lang_filter_open', String(isLangFilterOpen));
@@ -191,24 +236,186 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('newspulse_trending_open', String(isTrendingOpen));
   }, [isTrendingOpen]);
-  const [favorites, setFavorites] = useState<NewsItem[]>(() => {
-    const saved = localStorage.getItem('newspulse_favorites');
-    return saved ? JSON.parse(saved) : [];
-  });
 
   useEffect(() => {
-    localStorage.setItem('newspulse_favorites', JSON.stringify(favorites));
-  }, [favorites]);
+    localStorage.setItem('newspulse_search_history_open', String(isSearchHistoryOpen));
+  }, [isSearchHistoryOpen]);
 
-  const toggleFavorite = (item: NewsItem) => {
-    setFavorites(prev => {
-      const isFav = prev.some(f => f.link === item.link);
-      if (isFav) {
-        return prev.filter(f => f.link !== item.link);
-      } else {
-        return [...prev, item];
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!user && readLater.length > 0) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved "Read Later" articles. Login to save them permanently.';
+        return e.returnValue;
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [user, readLater]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      const wasLoggedOut = !userRef.current && currentUser;
+      userRef.current = currentUser;
+      setUser(currentUser);
+      setIsAuthReady(true);
+      
+      if (currentUser) {
+        // Check if there are local read later items to sync
+        const localReadLater = JSON.parse(localStorage.getItem('newspulse_readLater') || '[]');
+        if (wasLoggedOut && localReadLater.length > 0) {
+          setPendingLocalReadLater(localReadLater);
+          setShowSyncModal(true);
+        }
+
+        // Load preferences from Firestore
+        try {
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            if (data.selectedLangs) setSelectedLangs(data.selectedLangs);
+            if (data.darkMode !== undefined) setDarkMode(data.darkMode);
+          } else {
+            // Create user doc if it doesn't exist
+            await setDoc(doc(db, 'users', currentUser.uid), {
+              selectedLangs,
+              darkMode,
+              updatedAt: serverTimestamp()
+            });
+          }
+        } catch (e) {
+          console.error('Error loading user preferences:', e);
+        }
       }
     });
+    return () => unsubscribe();
+  }, []);
+
+  const syncReadLater = async () => {
+    if (!user) return;
+    try {
+      for (const item of pendingLocalReadLater) {
+        const itemId = btoa(item.link).replace(/[/+=]/g, '_');
+        await setDoc(doc(db, 'users', user.uid, 'readLater', itemId), {
+          ...item,
+          savedAt: serverTimestamp()
+        });
+      }
+      setShowSyncModal(false);
+      setPendingLocalReadLater([]);
+    } catch (e) {
+      console.error('Sync failed:', e);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      const q = query(collection(db, 'users', user.uid, 'readLater'), orderBy('savedAt', 'desc'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const items = snapshot.docs.map(doc => doc.data() as NewsItem);
+        setReadLater(items);
+        localStorage.setItem('newspulse_readLater', JSON.stringify(items));
+      }, (err) => {
+        handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/readLater`);
+      });
+      return () => unsubscribe();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      const q = query(collection(db, 'users', user.uid, 'searchHistory'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const history: Record<string, { lastSearchTime: number; lastRecordTime: number }> = {};
+        snapshot.docs.forEach(doc => {
+          const data = doc.data();
+          history[data.query] = {
+            lastSearchTime: data.lastSearchTime.toMillis(),
+            lastRecordTime: data.lastRecordTime.toMillis()
+          };
+        });
+        setSearchHistory(history);
+        localStorage.setItem('newspulse_search_history', JSON.stringify(history));
+      }, (err) => {
+        handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/searchHistory`);
+      });
+      return () => unsubscribe();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    localStorage.setItem('newspulse_readLater', JSON.stringify(readLater));
+  }, [readLater]);
+
+  useEffect(() => {
+    localStorage.setItem('newspulse_search_history', JSON.stringify(searchHistory));
+  }, [searchHistory]);
+
+  const handleLogin = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (e) {
+      console.error('Login failed:', e);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      // Clear local storage on logout to avoid mixing data
+      localStorage.removeItem('newspulse_readLater');
+      localStorage.removeItem('newspulse_search_history');
+      setReadLater([]);
+      setSearchHistory({});
+    } catch (e) {
+      console.error('Logout failed:', e);
+    }
+  };
+
+  const deleteSearch = async (queryStr: string) => {
+    if (user) {
+      try {
+        const queryId = btoa(queryStr.toLowerCase()).replace(/[/+=]/g, '_');
+        await deleteDoc(doc(db, 'users', user.uid, 'searchHistory', queryId));
+      } catch (e) {
+        handleFirestoreError(e, OperationType.DELETE, `users/${user.uid}/searchHistory`);
+      }
+    } else {
+      setSearchHistory(prev => {
+        const next = { ...prev };
+        delete next[queryStr];
+        return next;
+      });
+    }
+    setSearchToDelete(null);
+  };
+
+  const toggleReadLater = async (item: NewsItem) => {
+    const isSaved = readLater.some(f => f.link === item.link);
+    const itemId = btoa(item.link).replace(/[/+=]/g, '_');
+
+    if (user) {
+      try {
+        if (isSaved) {
+          await deleteDoc(doc(db, 'users', user.uid, 'readLater', itemId));
+        } else {
+          await setDoc(doc(db, 'users', user.uid, 'readLater', itemId), {
+            ...item,
+            savedAt: serverTimestamp()
+          });
+        }
+      } catch (e) {
+        handleFirestoreError(e, isSaved ? OperationType.DELETE : OperationType.WRITE, `users/${user.uid}/readLater/${itemId}`);
+      }
+    } else {
+      setReadLater(prev => {
+        if (isSaved) {
+          return prev.filter(f => f.link !== item.link);
+        } else {
+          return [...prev, item];
+        }
+      });
+    }
   };
 
   const riverRef = useRef<HTMLDivElement>(null);
@@ -260,6 +467,13 @@ export default function App() {
   useEffect(() => {
     Cookies.set(COOKIE_NAME, JSON.stringify(selectedLangs), { expires: 365 });
     
+    if (user) {
+      updateDoc(doc(db, 'users', user.uid), {
+        selectedLangs,
+        updatedAt: serverTimestamp()
+      }).catch(e => console.error('Error updating langs in Firestore:', e));
+    }
+
     // Re-fetch when languages change
     if (activeTab === 'river') {
       fetchInitialData();
@@ -267,11 +481,17 @@ export default function App() {
       const e = { preventDefault: () => {} } as React.FormEvent;
       handleSearch(e);
     }
-  }, [selectedLangs]);
+  }, [selectedLangs, user]);
 
   useEffect(() => {
     Cookies.set(THEME_COOKIE_NAME, darkMode ? 'dark' : 'light', { expires: 365 });
-  }, [darkMode]);
+    if (user) {
+      updateDoc(doc(db, 'users', user.uid), {
+        darkMode,
+        updatedAt: serverTimestamp()
+      }).catch(e => console.error('Error updating theme in Firestore:', e));
+    }
+  }, [darkMode, user]);
 
   const fetchInitialData = async () => {
     setIsLoading(true);
@@ -391,6 +611,28 @@ export default function App() {
         setSearchCount(data.total);
         setSearchRelation(data.relation || 'eq');
         setHasMoreSearch(data.hasMore);
+
+        // Update search history
+        if (data.items.length > 0) {
+          const newestRecordTime = new Date(data.items[0].pubDate).getTime();
+          const queryId = btoa(searchQuery.trim().toLowerCase()).replace(/[/+=]/g, '_');
+          
+          if (user) {
+            await setDoc(doc(db, 'users', user.uid, 'searchHistory', queryId), {
+              query: searchQuery.trim(),
+              lastSearchTime: serverTimestamp(),
+              lastRecordTime: Timestamp.fromMillis(newestRecordTime)
+            });
+          } else {
+            setSearchHistory(prev => ({
+              ...prev,
+              [searchQuery.trim()]: {
+                lastSearchTime: Date.now(),
+                lastRecordTime: newestRecordTime
+              }
+            }));
+          }
+        }
       }
     } catch (err) {
       console.error('Search failed');
@@ -486,6 +728,43 @@ export default function App() {
           </form>
 
           <div className={`flex items-center gap-4 text-xs font-mono ${darkMode ? 'text-white/40' : 'text-black/40'}`}>
+            {isAuthReady && (
+              <div className="flex items-center gap-3 mr-2 border-r pr-4 border-white/10">
+                {user ? (
+                  <div className="flex items-center gap-3">
+                    <div className="flex flex-col items-end hidden md:flex">
+                      <span className={`text-[10px] font-bold ${darkMode ? 'text-white' : 'text-black'}`}>{user.displayName}</span>
+                      <span className="text-[9px] opacity-50">Authorized</span>
+                    </div>
+                    {user.photoURL ? (
+                      <img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full border border-orange-500/50" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-orange-600 flex items-center justify-center text-black font-bold">
+                        <UserIcon className="w-4 h-4" />
+                      </div>
+                    )}
+                    <button
+                      onClick={handleLogout}
+                      className={`p-2 rounded-full transition-all hover:bg-red-500/10 text-red-500`}
+                      title="Logout"
+                    >
+                      <LogOut className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleLogin}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold text-[10px] uppercase tracking-widest transition-all ${
+                      darkMode ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-black/5 hover:bg-black/10 text-black'
+                    }`}
+                  >
+                    <LogIn className="w-3.5 h-3.5" />
+                    Login
+                  </button>
+                )}
+              </div>
+            )}
+
             <button
               onClick={() => setDarkMode(!darkMode)}
               className={`p-2 rounded-full transition-all hover:scale-110 active:scale-95 ${
@@ -658,6 +937,82 @@ export default function App() {
             </AnimatePresence>
           </section>
 
+          {user && (
+            <section>
+              <button 
+                onClick={() => setIsSearchHistoryOpen(!isSearchHistoryOpen)}
+                className="w-full flex items-center justify-between mb-4 text-orange-500 group"
+              >
+                <div className="flex items-center gap-2">
+                  <History className="w-5 h-5" />
+                  <h2 className="font-bold uppercase tracking-widest text-xs">Saved Searches</h2>
+                </div>
+                {isSearchHistoryOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+              <AnimatePresence>
+                {isSearchHistoryOpen && (
+                  <motion.div 
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="space-y-2">
+                      {Object.keys(searchHistory).length > 0 ? (
+                        (Object.entries(searchHistory) as [string, { lastSearchTime: number; lastRecordTime: number }][]).map(([queryStr, data]) => (
+                          <div
+                            key={queryStr}
+                            className={`w-full p-3 rounded-lg border transition-all flex flex-col gap-1 relative group ${
+                              darkMode 
+                                ? 'bg-white/5 border-transparent hover:border-white/10 hover:bg-white/10' 
+                                : 'bg-white border-black/5 hover:border-black/10 hover:bg-gray-50 shadow-sm'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <button
+                                onClick={() => {
+                                  setSearchQuery(queryStr);
+                                  handleSearch({ preventDefault: () => {} } as any);
+                                }}
+                                className={`text-sm font-bold truncate max-w-[160px] text-left ${
+                                  darkMode ? 'text-white group-hover:text-orange-400' : 'text-black group-hover:text-orange-600'
+                                }`}
+                              >
+                                {queryStr}
+                              </button>
+                              <button
+                                onClick={() => setSearchToDelete(queryStr)}
+                                className={`p-1 rounded transition-colors opacity-0 group-hover:opacity-100 ${
+                                  darkMode ? 'hover:bg-red-500/20 text-red-500/50 hover:text-red-500' : 'hover:bg-red-500/10 text-red-500/50 hover:text-red-500'
+                                }`}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                            <div className={`text-[9px] font-mono flex items-center gap-1 ${darkMode ? 'text-white/30' : 'text-black/30'}`}>
+                              <Clock className="w-2.5 h-2.5" />
+                              Latest: {new Date(data.lastRecordTime).toLocaleString('en-US', { 
+                                month: 'short', 
+                                day: 'numeric', 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                              })}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className={`text-xs italic p-2 ${darkMode ? 'text-white/30' : 'text-black/30'}`}>
+                          Ainda sem pesquisas guardadas
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </section>
+          )}
+
           <section className={`p-4 rounded-xl border transition-colors duration-300 ${
             darkMode ? 'bg-orange-600/10 border-orange-600/20' : 'bg-orange-50 border-orange-200'
           }`}>
@@ -710,15 +1065,15 @@ export default function App() {
               </button>
             )}
             <button
-              onClick={() => setActiveTab('favorites')}
+              onClick={() => setActiveTab('readLater')}
               className={`pb-4 text-sm font-bold uppercase tracking-widest transition-colors relative ${
-                activeTab === 'favorites' 
+                activeTab === 'readLater' 
                   ? (darkMode ? 'text-white' : 'text-black') 
                   : (darkMode ? 'text-white/40 hover:text-white/60' : 'text-black/40 hover:text-black/60')
               }`}
             >
-              Favorites {favorites.length > 0 && `(${favorites.length})`}
-              {activeTab === 'favorites' && (
+              Read Later {readLater.length > 0 && `(${readLater.length})`}
+              {activeTab === 'readLater' && (
                 <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-600" />
               )}
             </button>
@@ -753,8 +1108,8 @@ export default function App() {
                           index={i} 
                           onOpenDetail={() => setSelectedImage(item)} 
                           darkMode={darkMode}
-                          isFavorite={favorites.some(f => f.link === item.link)}
-                          onToggleFavorite={toggleFavorite}
+                          isFavorite={readLater.some(f => f.link === item.link)}
+                          onToggleFavorite={toggleReadLater}
                         />
                       </div>
                     ))}
@@ -796,8 +1151,9 @@ export default function App() {
                           index={i} 
                           onOpenDetail={() => setSelectedImage(item)} 
                           darkMode={darkMode}
-                          isFavorite={favorites.some(f => f.link === item.link)}
-                          onToggleFavorite={toggleFavorite}
+                          isFavorite={readLater.some(f => f.link === item.link)}
+                          onToggleFavorite={toggleReadLater}
+                          isNew={!!searchHistory[searchQuery] && searchHistory[searchQuery].lastRecordTime < new Date(item.pubDate).getTime()}
                         />
                       </div>
                     ))}
@@ -827,7 +1183,7 @@ export default function App() {
             ) : (
               <div className="space-y-4">
                 <AnimatePresence mode="popLayout">
-                    {favorites.map((item, i) => (
+                    {readLater.map((item, i) => (
                       <div key={`fav-${item.link}-${i}`}>
                         <NewsCard 
                           item={item} 
@@ -835,17 +1191,17 @@ export default function App() {
                           onOpenDetail={() => setSelectedImage(item)} 
                           darkMode={darkMode}
                           isFavorite={true}
-                          onToggleFavorite={toggleFavorite}
+                          onToggleFavorite={toggleReadLater}
                         />
                       </div>
                     ))}
                 </AnimatePresence>
                 
-                {favorites.length === 0 && (
+                {readLater.length === 0 && (
                   <div className={`text-center py-24 border-2 border-dashed rounded-2xl ${darkMode ? 'border-white/5' : 'border-black/5'}`}>
-                    <Heart className={`w-12 h-12 mx-auto mb-4 ${darkMode ? 'text-white/10' : 'text-black/10'}`} />
-                    <p className={`${darkMode ? 'text-white/40' : 'text-black/40'} text-sm`}>
-                      You haven't added any favorites yet. Click the heart icon on any news card to save it here.
+                    <Bookmark className={`w-12 h-12 mx-auto mb-4 ${darkMode ? 'text-white/10' : 'text-black/10'}`} />
+                    <p className={`${darkMode ? 'text-white/40' : 'text-black/40'} text-sm max-w-md mx-auto`}>
+                      Your "Read Later" list is empty. Save articles to read them later, and they'll be synced across your devices when logged in.
                     </p>
                   </div>
                 )}
@@ -959,11 +1315,94 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Sync Modal */}
+      <AnimatePresence>
+        {showSyncModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className={`max-w-md w-full p-6 rounded-2xl border shadow-2xl ${
+                darkMode ? 'bg-[#1a1a1a] border-white/10' : 'bg-white border-black/10'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-4 text-orange-500">
+                <Bookmark className="w-6 h-6" />
+                <h3 className="text-xl font-bold">Sync Read Later?</h3>
+              </div>
+              <p className={`text-sm mb-6 leading-relaxed ${darkMode ? 'text-white/60' : 'text-black/60'}`}>
+                You have {pendingLocalReadLater.length} articles saved locally. Would you like to sync them to your account so they're available on all your devices?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={syncReadLater}
+                  className="flex-1 py-2.5 bg-orange-600 hover:bg-orange-500 text-black font-bold rounded-xl transition-all"
+                >
+                  Yes, Sync Now
+                </button>
+                <button
+                  onClick={() => {
+                    setShowSyncModal(false);
+                    setPendingLocalReadLater([]);
+                  }}
+                  className={`flex-1 py-2.5 font-bold rounded-xl transition-all ${
+                    darkMode ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-black/5 hover:bg-black/10 text-black'
+                  }`}
+                >
+                  No, Keep Local
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Search Confirmation Modal */}
+      <AnimatePresence>
+        {searchToDelete && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className={`max-w-sm w-full p-6 rounded-2xl border shadow-2xl ${
+                darkMode ? 'bg-[#1a1a1a] border-white/10' : 'bg-white border-black/10'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-4 text-red-500">
+                <Trash2 className="w-6 h-6" />
+                <h3 className="text-xl font-bold">Delete Search?</h3>
+              </div>
+              <p className={`text-sm mb-6 leading-relaxed ${darkMode ? 'text-white/60' : 'text-black/60'}`}>
+                Are you sure you want to delete the saved search for <strong>"{searchToDelete}"</strong>?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => deleteSearch(searchToDelete)}
+                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-all"
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={() => setSearchToDelete(null)}
+                  className={`flex-1 py-2.5 font-bold rounded-xl transition-all ${
+                    darkMode ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-black/5 hover:bg-black/10 text-black'
+                  }`}
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function NewsCard({ item, index, onOpenDetail, darkMode, isFavorite, onToggleFavorite }: { item: NewsItem; index: number; onOpenDetail: () => void; darkMode: boolean; isFavorite: boolean; onToggleFavorite: (item: NewsItem) => void }) {
+function NewsCard({ item, index, onOpenDetail, darkMode, isFavorite, onToggleFavorite, isNew }: { item: NewsItem; index: number; onOpenDetail: () => void; darkMode: boolean; isFavorite: boolean; onToggleFavorite: (item: NewsItem) => void; isNew?: boolean }) {
   const safeDate = (dateStr: string) => {
     try {
       const d = new Date(dateStr);
@@ -978,12 +1417,19 @@ function NewsCard({ item, index, onOpenDetail, darkMode, isFavorite, onToggleFav
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.05, 0.5) }}
-      className={`group border rounded-xl overflow-hidden transition-all flex flex-col md:flex-row ${
+      className={`group border rounded-xl overflow-hidden transition-all flex flex-col md:flex-row relative ${
         darkMode 
           ? 'bg-white/5 border-white/10 hover:bg-white/[0.08] hover:border-white/20' 
           : 'bg-white border-black/10 hover:bg-gray-50 hover:border-black/20 shadow-sm'
       }`}
     >
+      {isNew && (
+        <div className="absolute top-0 right-0 z-10">
+          <div className="bg-orange-600 text-black text-[8px] font-bold px-3 py-1 uppercase tracking-widest transform rotate-45 translate-x-4 -translate-y-1 shadow-lg">
+            New
+          </div>
+        </div>
+      )}
       <div className="flex-1 p-5 flex flex-col min-w-0">
         <div className="flex justify-between items-start gap-4 mb-3">
           <div className={`flex items-center gap-2 text-[10px] font-mono uppercase tracking-tighter ${

@@ -1,6 +1,6 @@
 {
   "name": "NewsPulse: RSS Intelligence Dashboard",
   "author": "Filipe MS Bento",
-  "description": "A high-performance news monitoring interface powered by Elasticsearch, featuring real-time trending topics, a live news river, and deep historical search.",
+  "description": "A high-performance news monitoring interface powered by Elasticsearch, featuring real-time trending topics, a live news river, deep historical search, and a 'Read Later' feature with Firebase synchronization.",
   "requestFramePermissions": []
 }
