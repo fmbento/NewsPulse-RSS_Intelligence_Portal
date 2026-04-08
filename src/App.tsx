@@ -1480,8 +1480,8 @@ function NewsCard({ item, index, onOpenDetail, darkMode, isFavorite, onToggleFav
       }`}
     >
       {isNew && (
-        <div className="absolute top-0 right-0 z-10">
-          <div className="bg-orange-600 text-black text-[8px] font-bold px-3 py-1 uppercase tracking-widest transform rotate-45 translate-x-4 -translate-y-1 shadow-lg">
+        <div className="absolute top-0 right-0 z-10 overflow-hidden w-10 h-10 pointer-events-none">
+          <div className="bg-orange-600 text-black text-[7px] font-black py-0.5 w-16 absolute top-1.5 -right-5 transform rotate-45 text-center shadow-sm uppercase tracking-widest">
             New
           </div>
         </div>
