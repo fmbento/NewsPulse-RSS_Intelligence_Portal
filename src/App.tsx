@@ -215,6 +215,7 @@ export default function App() {
   });
 
   const [showSyncModal, setShowSyncModal] = useState(false);
+  const [showLoginPromptModal, setShowLoginPromptModal] = useState(false);
   const [pendingLocalReadLater, setPendingLocalReadLater] = useState<NewsItem[]>([]);
   const [searchToDelete, setSearchToDelete] = useState<string | null>(null);
   const userRef = useRef<User | null>(null);
@@ -228,6 +229,7 @@ export default function App() {
     const saved = localStorage.getItem('newspulse_search_history');
     return saved ? JSON.parse(saved) : {};
   });
+  const [prevSearchRecordTime, setPrevSearchRecordTime] = useState<number | null>(null);
 
   useEffect(() => {
     localStorage.setItem('newspulse_lang_filter_open', String(isLangFilterOpen));
@@ -410,6 +412,9 @@ export default function App() {
         handleFirestoreError(e, isSaved ? OperationType.DELETE : OperationType.WRITE, `users/${user.uid}/readLater/${itemId}`);
       }
     } else {
+      if (!isSaved) {
+        setShowLoginPromptModal(true);
+      }
       setReadLater(prev => {
         if (isSaved) {
           return prev.filter(f => f.link !== item.link);
@@ -604,6 +609,11 @@ export default function App() {
     setActiveTab('search');
     setSearchPage(0);
     setHasMoreSearch(true);
+    
+    // Store the previous record time for the "new" ribbon logic before updating history
+    const existingHistory = searchHistory[searchQuery.trim()];
+    setPrevSearchRecordTime(existingHistory ? existingHistory.lastRecordTime : null);
+
     try {
       const langsParam = selectedLangs.join(',');
       const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&langs=${encodeURIComponent(langsParam)}&from=0&size=50`);
@@ -1155,7 +1165,7 @@ export default function App() {
                           darkMode={darkMode}
                           isFavorite={readLater.some(f => f.link === item.link)}
                           onToggleFavorite={toggleReadLater}
-                          isNew={!!searchHistory[searchQuery] && searchHistory[searchQuery].lastRecordTime < new Date(item.pubDate).getTime()}
+                          isNew={prevSearchRecordTime !== null && prevSearchRecordTime < new Date(item.pubDate).getTime()}
                         />
                       </div>
                     ))}
@@ -1315,6 +1325,50 @@ export default function App() {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Login Prompt Modal */}
+      <AnimatePresence>
+        {showLoginPromptModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className={`max-w-md w-full p-6 rounded-2xl border shadow-2xl ${
+                darkMode ? 'bg-[#1a1a1a] border-white/10' : 'bg-white border-black/10'
+              }`}
+            >
+              <div className="flex items-center gap-3 mb-4 text-orange-500">
+                <LogIn className="w-6 h-6" />
+                <h3 className="text-xl font-bold">Save Permanently?</h3>
+              </div>
+              <p className={`text-sm mb-6 leading-relaxed ${darkMode ? 'text-white/60' : 'text-black/60'}`}>
+                You're saving this article locally. Log in now to save it to your account and access it from any device!
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => {
+                    setShowLoginPromptModal(false);
+                    handleLogin();
+                  }}
+                  className="w-full py-3 bg-orange-600 hover:bg-orange-500 text-black font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  <LogIn className="w-4 h-4" />
+                  Log In with Google
+                </button>
+                <button
+                  onClick={() => setShowLoginPromptModal(false)}
+                  className={`w-full py-3 font-bold rounded-xl transition-all ${
+                    darkMode ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-black/5 hover:bg-black/10 text-black'
+                  }`}
+                >
+                  Continue Locally
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
