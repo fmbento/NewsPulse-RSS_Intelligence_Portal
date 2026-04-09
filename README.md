@@ -99,6 +99,13 @@ The application requires connection to an Elasticsearch instance. Define the fol
 
 ## 📜 Changelog
 
+### [0.9.2] - 2026-04-09
+- **UI & UX Refinements**:
+  - Updated "New" ribbon text color to white for better contrast.
+  - Improved "Saved Searches" interaction: clicking a saved search now triggers the search immediately.
+  - Fixed a race condition in preference synchronization that could overwrite cloud settings with local ones upon login.
+  - Adjusted "New" ribbon positioning to be more compact and avoid overlapping action icons.
+
 ### [0.9.1] - 2026-04-07
 - **Enhanced Data Persistence**:
   - Added a synchronization prompt when logging in with local "Read Later" items.

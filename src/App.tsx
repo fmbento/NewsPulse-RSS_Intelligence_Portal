@@ -990,7 +990,11 @@ export default function App() {
                               <button
                                 onClick={() => {
                                   setSearchQuery(queryStr);
-                                  handleSearch({ preventDefault: () => {} } as any);
+                                  // Trigger search immediately
+                                  setTimeout(() => {
+                                    const mockEvent = { preventDefault: () => {} } as React.FormEvent;
+                                    handleSearch(mockEvent);
+                                  }, 0);
                                 }}
                                 className={`text-sm font-bold truncate max-w-[160px] text-left ${
                                   darkMode ? 'text-white group-hover:text-orange-400' : 'text-black group-hover:text-orange-600'
@@ -1486,7 +1490,7 @@ function NewsCard({ item, index, onOpenDetail, darkMode, isFavorite, onToggleFav
     >
       {isNew && (
         <div className="absolute top-0 right-0 z-10 overflow-hidden w-10 h-10 pointer-events-none">
-          <div className="bg-orange-600 text-black text-[7px] font-black py-0.5 w-16 absolute top-1.5 -right-5 transform rotate-45 text-center shadow-sm uppercase tracking-widest">
+          <div className="bg-orange-600 text-white text-[7px] font-black py-0.5 w-16 absolute top-1.5 -right-5 transform rotate-45 text-center shadow-sm uppercase tracking-widest">
             New
           </div>
         </div>
