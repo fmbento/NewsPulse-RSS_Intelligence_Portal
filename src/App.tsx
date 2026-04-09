@@ -230,6 +230,7 @@ export default function App() {
     return saved ? JSON.parse(saved) : {};
   });
   const [prevSearchRecordTime, setPrevSearchRecordTime] = useState<number | null>(null);
+  const [prefsLoaded, setPrefsLoaded] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('newspulse_lang_filter_open', String(isLangFilterOpen));
@@ -287,7 +288,11 @@ export default function App() {
           }
         } catch (e) {
           console.error('Error loading user preferences:', e);
+        } finally {
+          setPrefsLoaded(true);
         }
+      } else {
+        setPrefsLoaded(false);
       }
     });
     return () => unsubscribe();
@@ -474,7 +479,7 @@ export default function App() {
   useEffect(() => {
     Cookies.set(COOKIE_NAME, JSON.stringify(selectedLangs), { expires: 365 });
     
-    if (user) {
+    if (user && prefsLoaded) {
       updateDoc(doc(db, 'users', user.uid), {
         selectedLangs,
         updatedAt: serverTimestamp()
@@ -488,17 +493,17 @@ export default function App() {
       const e = { preventDefault: () => {} } as React.FormEvent;
       handleSearch(e);
     }
-  }, [selectedLangs, user]);
+  }, [selectedLangs, user, prefsLoaded]);
 
   useEffect(() => {
     Cookies.set(THEME_COOKIE_NAME, darkMode ? 'dark' : 'light', { expires: 365 });
-    if (user) {
+    if (user && prefsLoaded) {
       updateDoc(doc(db, 'users', user.uid), {
         darkMode,
         updatedAt: serverTimestamp()
       }).catch(e => console.error('Error updating theme in Firestore:', e));
     }
-  }, [darkMode, user]);
+  }, [darkMode, user, prefsLoaded]);
 
   const fetchInitialData = async () => {
     setIsLoading(true);
